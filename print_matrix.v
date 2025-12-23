@@ -5,7 +5,7 @@ module print_matrix (
     input  wire [2:0]  width,
     input  wire [2:0]  height,
     input  wire        start,
-    input  wire        uart_tx_busy, // 新增：发送端忙信号
+    input  wire        tx_busy, // 新增：发送端忙信号
     output reg         busy,
     output reg         done,
     output reg  [7:0]  dout,
@@ -31,7 +31,6 @@ module print_matrix (
     reg [4:0] total_cnt, total_cnt_next;     // width*height
     reg [3:0] col_cnt, col_cnt_next;
     // reg [7:0] num_buf;
-    reg [2:0] next_print;
 
     // 状态机
     // 现态寄存器
@@ -73,7 +72,7 @@ module print_matrix (
                 col_cnt_next = 0;
             end
             S_PRINT_NUM: begin
-                if (!uart_tx_busy) begin // 等待发送端空闲
+                if (!tx_busy) begin // 等待发送端空闲
                     if (cnt < total_cnt) begin
                         next_state = S_PRINT_SPACE;
                     end else begin
@@ -84,7 +83,7 @@ module print_matrix (
                 end
             end
             S_PRINT_SPACE: begin
-                if (!uart_tx_busy) begin
+                if (!tx_busy) begin
                     cnt_next = cnt + 1;
                     if (col_cnt == width - 1) begin
                         col_cnt_next = 0;
@@ -98,14 +97,14 @@ module print_matrix (
                 end
             end
             S_PRINT_CR: begin
-                if (!uart_tx_busy) begin
+                if (!tx_busy) begin
                     next_state = S_PRINT_LF;
                 end else begin
                     next_state = S_PRINT_CR;
                 end
             end
             S_PRINT_LF: begin
-                if (!uart_tx_busy) begin
+                if (!tx_busy) begin
                     if (cnt==total_cnt) begin
                         next_state = S_DONE;
                     end else begin
@@ -142,7 +141,7 @@ module print_matrix (
             S_PRINT_NUM: begin
                 busy_r = 1;
                 done_r = 0;
-                dout_r = data_input[cnt*8 +: 8] + 8'd48;//哪个高位！！！
+                dout_r = data_input[cnt*8 +: 8] + 8'd30;// ASCII转换
             end
             S_PRINT_SPACE: begin
                 busy_r = 1;
@@ -166,11 +165,9 @@ module print_matrix (
             end
         endcase
     end
-    reg [2:0] last_state;
-
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
-            last_state <= S_IDLE;
+
             busy <= 0;
             done <= 0;
             dout <= 0;
@@ -179,14 +176,12 @@ module print_matrix (
             busy <= busy_r;
             done <= done_r;
             dout <= dout_r;
-            last_state <= state;
-            // dout_valid逻辑：每次进入PRINT_NUM、PRINT_SPACE、PRINT_CR、PRINT_LF状态时拉高1拍
-            if ((state == S_PRINT_NUM || state == S_PRINT_SPACE || state == S_PRINT_CR || state == S_PRINT_LF) 
-                && (last_state != state)) begin
-                dout_valid <= 1'b1;
-            end else begin
-                dout_valid <= 1'b0;
-            end
+
+            // dout_valid逻辑：当在发送状态且UART不忙时拉高
+            dout_valid <= (state == S_PRINT_NUM && !tx_busy) ||
+                          (state == S_PRINT_SPACE && !tx_busy) ||
+                          (state == S_PRINT_CR && !tx_busy) ||
+                          (state == S_PRINT_LF && !tx_busy);
         end
     end
 

@@ -60,43 +60,6 @@ module sys_top(
 	assign print_dout = data_input_mode_en ? print_dout_ind : 8'd0;//改成if
     assign print_dout_valid = data_input_mode_en ? print_dout_valid_ind : 1'b0;
 
-
-	// 错误点：下面这个always块只会在print_busy刚变高时发送第一个字节，
-	// 后续print_busy为高期间，print_sent一直为1，导致不会再发第二个字节，
-	// 所以UART只会收到一个字符。
-	// 正确做法：应让每个字节都能单独触发发送。
-	// 推荐改法：让print_matrix模块输出一个dout_valid信号，每次dout_valid为1时，uart_tx_en拉高一个周期。
-	// 如果没有dout_valid，可以用print_busy的下降沿或done信号配合实现。
-	// 修正后：每次print_dout_valid为高且uart_tx不忙时，发送一个字节
-	always @(posedge clk or negedge rst_n) begin
-		if (!rst_n) begin
-			uart_tx_en <= 1'b0;
-			uart_tx_data <= 8'd0;
-		end else if (print_dout_valid && !uart_tx_busy) begin
-			uart_tx_en <= 1'b1;
-			uart_tx_data <= print_dout;
-		end else begin
-			uart_tx_en <= 1'b0;
-		end
-	end
-
-	/*
-	// 修正建议：
-	// 1. 在print_matrix模块增加dout_valid信号，每输出一个新字节时dout_valid拉高1拍。
-	// 2. 用如下方式控制uart_tx_en：
-	always @(posedge clk or negedge rst_n) begin
-		if (!rst_n) begin
-			uart_tx_en <= 1'b0;
-			uart_tx_data <= 8'd0;
-		end else if (print_dout_valid && !uart_tx_busy) begin
-			uart_tx_en <= 1'b1;
-			uart_tx_data <= print_dout;
-		end else begin
-			uart_tx_en <= 1'b0;
-		end
-	end
-	// 这样每个字节都能被正确发送。
-	*/
 	uart_tx u_tx(
 		.clk(clk),
 		.rst_n(rst_n),
@@ -149,6 +112,9 @@ module sys_top(
 	reg [24:0] led0_cnt; // 0.5秒计数，假设50MHz时钟，0.5s=25_000_000
 	wire [7:0] ld2_wire;
 	assign ld2_wire = {7'd0, led0_on};
+
+
+	// 数码管显示数据暂未使用，全部拉低
 	assign seg_data0 = 8'd0;
 	assign seg_data1 = 8'd0;
 	assign seg_sel0 = 8'd0;
@@ -212,11 +178,16 @@ module sys_top(
 			store_mat_col <= 3'd0;
 			store_mat_row <= 3'd0;
 			store_data_flow <= 200'd0;
-		end else if (parse_done) begin
+		end else if (parse_done) begin		//输入模块的存储
 			store_write_en <= 1'b1;
 			store_mat_col <= parsed_m;
 			store_mat_row <= parsed_n;
 			store_data_flow <= parsed_matrix_flat;
+		end else if (gen_valid) begin		//生成模块的存储
+			store_write_en <= 1'b1;
+			store_mat_col <= gen_m;
+			store_mat_row <= gen_n;
+			store_data_flow <= gen_flow;
 		end else begin
 			store_write_en <= 1'b0;
 		end
@@ -244,32 +215,63 @@ module sys_top(
 		.total_count(),
 		.info_table()
 	);
-
-	// --- Print Matrix For Input---
-	wire print_start_ind = parse_done;
-	wire print_busy_ind, print_done_ind;
-	wire [7:0] print_dout_ind;
-	wire print_dout_valid_ind;
-	// 只在输入模式下将uart_tx_busy连接到print_matrix，否则为0，防止其他模式下信号冲突
-	wire print_uart_tx_busy = data_input_mode_en ? uart_tx_busy : 1'b0;
-	print_matrix u_auto_input(
+	// generator_operate模块的输入
+	wire [7:0] uart_data_gen;
+	assign uart_data_gen = uart_rx_data;
+	wire [199:0] gen_flow;
+	wire gen_done;
+	wire gen_error;
+	wire gen_valid;
+	wire [2:0] gen_m, gen_n;
+	genrate_mode u_generate_operate(
 		.clk(clk),
 		.rst_n(rst_n),
-		.data_input(parsed_matrix_flat),
-		.width(parsed_m),
-		.height(parsed_n),
-		.start(print_start_ind),
-		.uart_tx_busy(print_uart_tx_busy),
-		.busy(print_busy_ind),
-		.done(print_done_ind),
-		.dout(print_dout_ind),
-		.dout_valid(print_dout_valid_ind)
+		.start(generate_mode_en),
+		.uart_data(uart_data_gen),
+		.uart_data_valid(uart_rx_done),
+		.gen_matrix_flat(gen_flow),
+		.gen_m(gen_m),
+		.gen_n(gen_n),
+		.gen_done(gen_done),
+		.gen_valid(gen_valid),
+		.error(gen_error)
 	);
+	
+
+
     // --- Print  For Gnerate---
+	// wire [199:0] gen_flow_print;
+	// wire print_busy_gen, print_done_gen, print_dout_valid_gen;//待接线，向上翻找uart_tx模块寻求握手
+	// wire [7:0] print_dout_gen;
+	// print_matrix u_print_matrix_gen (
+	//     .clk(clk),
+	//     .rst_n(rst_n),
+	//     .data_input(gen_flow),
+	//     .width(gen_m),
+	//     .height(gen_n),
+	//     .start(display_mode_en),
+	//     .uart_tx_busy(uart_tx_busy),
+	//     .busy(print_busy_gen),
+	//     .done(print_done_gen),
+	//     .dout(print_dout_gen),
+	//     .dout_valid(print_dout_valid_gen)	
+	// );
     
 
 
-    // --- Print  For Display---
+    // --- Print table For Display---
+	// wire [49:0] info_table;
+	// wire print_busy_dis, print_done_dis;
+	// wire [7:0] print_dout_dis;
+	// print_table u_print_table_gen (
+	//     .clk(clk),
+	//     .rst_n(rst_n),
+	//     .start(display_mode_en),
+	//     .info_table(info_table),
+	//     .busy(print_busy_gen),
+	//     .done(print_done_gen),
+	//     .dout(print_dout_gen)
+	// );
 
 
 

@@ -2,10 +2,12 @@ module print_table(
     input wire clk,
     input wire rst_n,
     input wire start,
+    input wire tx_busy,
     input wire [49:0] info_table,
     output reg busy,
     output reg done,
-    output reg [7:0] dout
+    output reg [7:0] dout,
+    output reg dout_valid
 );
     // ASCII码常量定义
     localparam [7:0] ASCII_STAR  = 8'h2A; // '*'
@@ -115,3 +117,4 @@ module print_table(
             endcase
         end
     end
+endmodule

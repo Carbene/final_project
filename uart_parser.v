@@ -91,7 +91,7 @@ always @(posedge clk or negedge rst_n) begin
                     if (rx_data >= "0" && rx_data <= "9") begin
                         current_num <= current_num * 10 + (rx_data - "0");
                         num_started <= 1'b1;
-                    end else if (rx_data == "," && num_started) begin
+                    end else if (rx_data == " " && num_started) begin//改空格
                         // m 范围 1~5
                         if (current_num >= 1 && current_num <= 5) begin
                             parsed_m <= current_num[2:0];
@@ -125,7 +125,7 @@ always @(posedge clk or negedge rst_n) begin
                     if (rx_data >= "0" && rx_data <= "9") begin
                         current_num <= current_num * 10 + (rx_data - "0");
                         num_started <= 1'b1;
-                    end else if (rx_data == ":" && num_started) begin
+                    end else if (rx_data == " " && num_started) begin //改空格
                         // n 范围 1~5
                         if (current_num >= 1 && current_num <= 5) begin
                             parsed_n <= current_num[2:0];
@@ -174,7 +174,7 @@ always @(posedge clk or negedge rst_n) begin
                             current_num <= current_num * 10 + (rx_data - "0");
                             num_started <= 1'b1;
                         end
-                    end else if ((rx_data == "," || rx_data == 8'h0D || rx_data == 8'h0A) && num_started) begin
+                    end else if ((rx_data == " " || rx_data == 8'h0D || rx_data == 8'h0A) && num_started) begin
                         // 完成一个元素
                         if (elem_index < target_elems) begin
                             parsed_matrix_flat[elem_index*8 +: 8] <= current_num;
