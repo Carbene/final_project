@@ -5,7 +5,7 @@ module generate_mode#(
     input wire clk,
     input wire rst_n,
     input wire start,
-    input wire uart_data,
+    input wire [7:0] uart_data,
     input wire uart_data_valid,
     output reg [199:0] gen_matrix_flat,
     output reg gen_done,
@@ -57,14 +57,27 @@ module generate_mode#(
                     busy <= 1'b0;
                     gen_cnt <= 2'd0;
                 end
-                RECEIVE_M: if(uart_data_valid) gen_m <= dealed_data[2:0];
-                RECEIVE_N: if(uart_data_valid) gen_n <= dealed_data[2:0];
+                RECEIVE_M: if(uart_data_valid) begin
+                    if(dealed_data[2:0] == 3'd0 || dealed_data[2:0] > 3'd5)
+                        gen_m <= 3'd0;  // 无效值，会触发错误
+                    else
+                        gen_m <= dealed_data[2:0];
+                end
+                RECEIVE_N: if(uart_data_valid) begin
+                    if(dealed_data[2:0] == 3'd0 || dealed_data[2:0] > 3'd5)
+                        gen_n <= 3'd0;  // 无效值，会触发错误
+                    else
+                        gen_n <= dealed_data[2:0];
+                end
                 RECEIVE_NUM: if(uart_data_valid) num <= (dealed_data > 2) ? 2 : dealed_data[1:0];
                 GENERATE: begin
                     busy <= 1'b1;
                     gen_valid <= 1'b0;
-                    // 生成一个矩阵
-                    if (i < gen_m && j < gen_n) begin
+                    // 检查矩阵尺寸是否有效
+                    if (gen_m == 3'd0 || gen_n == 3'd0) begin
+                        // 尺寸无效，跳转到错误状态
+                        error <= 1'b1;
+                    end else if (i < gen_m && j < gen_n) begin
                         v = {4'd0, lfsr[3:0]};
                         if (v > elem_max) v = v - (elem_max - elem_min + 1);
                         if (v < elem_min) v = elem_min;
@@ -105,7 +118,12 @@ module generate_mode#(
             RECEIVE_M: if(uart_data_valid) next_state = RECEIVE_N;
             RECEIVE_N: if(uart_data_valid) next_state = RECEIVE_NUM;
             RECEIVE_NUM: if(uart_data_valid) next_state = GENERATE;
-            GENERATE: if(gen_valid) next_state = (gen_cnt == num) ? DONE : WAIT_WRITE;
+            GENERATE: begin
+                if (gen_m == 3'd0 || gen_n == 3'd0)
+                    next_state = ERR;
+                else if(gen_valid)
+                    next_state = (gen_cnt == num) ? DONE : WAIT_WRITE;
+            end
             WAIT_WRITE: next_state = GENERATE;
             DONE: next_state = IDLE;
             ERR: next_state = RECEIVE_M;
