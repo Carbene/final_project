@@ -1,0 +1,1 @@
+当前generation mode，已通，除非单纯的写使能存不进去（三个led灯确认，gen_valid(单个矩阵)，gen_done均闪烁）
