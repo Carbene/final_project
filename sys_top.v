@@ -104,6 +104,12 @@ module sys_top(
 	// --- Ld2/数码管输出 ---
 	reg led0_on;
 	reg [24:0] led0_cnt; // 0.5秒计数，假设50MHz时钟，0.5s=25_000_000
+	reg led1_on; // gen_done指示灯
+	reg [24:0] led1_cnt;
+	reg led2_on; // gen_error指示灯
+	reg [24:0] led2_cnt;
+	reg led3_on; // gen_valid指示灯
+	reg [24:0] led3_cnt;
 	wire [7:0] ld2_wire;
 	assign ld2_wire = {7'd0, led0_on};
 
@@ -130,14 +136,67 @@ module sys_top(
 	        end
 	    end
 	end
+
+	// --- led1控制逻辑 (gen_done指示) ---
+	always @(posedge clk or negedge rst_n) begin
+	    if (!rst_n) begin
+	        led1_on <= 1'b0;
+	        led1_cnt <= 25'd0;
+	    end else if (gen_done) begin
+	        led1_on <= 1'b1;
+	        led1_cnt <= 25'd0;
+	    end else if (led1_on) begin
+	        if (led1_cnt < 25'd24_999_999) begin
+	            led1_cnt <= led1_cnt + 1'b1;
+	        end else begin
+	            led1_on <= 1'b0;
+	        end
+	    end
+	end
+
+	// --- led2控制逻辑 (gen_error指示) ---
+	always @(posedge clk or negedge rst_n) begin
+	    if (!rst_n) begin
+	        led2_on <= 1'b0;
+	        led2_cnt <= 25'd0;
+	    end else if (gen_error) begin
+	        led2_on <= 1'b1;
+	        led2_cnt <= 25'd0;
+	    end else if (led2_on) begin
+	        if (led2_cnt < 25'd24_999_999) begin
+	            led2_cnt <= led2_cnt + 1'b1;
+	        end else begin
+	            led2_on <= 1'b0;
+	        end
+	    end
+	end
+
+	// --- led3控制逻辑 (gen_valid指示) ---
+	always @(posedge clk or negedge rst_n) begin
+	    if (!rst_n) begin
+	        led3_on <= 1'b0;
+	        led3_cnt <= 25'd0;
+	    end else if (gen_valid) begin
+	        led3_on <= 1'b1;
+	        led3_cnt <= 25'd0;
+	    end else if (led3_on) begin
+	        if (led3_cnt < 25'd24_999_999) begin
+	            led3_cnt <= led3_cnt + 1'b1;
+	        end else begin
+	            led3_on <= 1'b0;
+	        end
+	    end
+	end
+
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             ld2 <= 8'd0;
         end else begin
-            ld2[0] <= ld2_wire[0]; // 保持原有逻辑
-            ld2[1] <= gen_done;    // 将gen_done连接到ld2[1]
-            ld2[2] <= gen_error;   // 将gen_error连接到ld2[2]
-            ld2[7:3] <= 5'd0;      // 保持其他位为0
+            ld2[0] <= ld2_wire[0]; // 写存储指示
+            ld2[1] <= led1_on;     // gen_done延长显示
+            ld2[2] <= led2_on;     // gen_error延长显示
+            ld2[3] <= led3_on;     // gen_valid延长显示
+            ld2[7:4] <= 4'd0;      // 保持其他位为0
         end
     end
 
