@@ -1,4 +1,3 @@
-
 // 顶层模块：sys_top
 
 module sys_top(
@@ -54,11 +53,6 @@ module sys_top(
 	// --- print信号总线 ---
 	wire print_busy, print_done, print_dout_valid;
 	wire [7:0] print_dout;
-    // --- print信号选择 ---
-	assign print_busy = data_input_mode_en ? print_busy_ind : 1'b0;
-	assign print_done = data_input_mode_en ? print_done_ind : 1'b0;
-	assign print_dout = data_input_mode_en ? print_dout_ind : 8'd0;//改成if
-    assign print_dout_valid = data_input_mode_en ? print_dout_valid_ind : 1'b0;
 
 	uart_tx u_tx(
 		.clk(clk),
@@ -140,7 +134,10 @@ module sys_top(
         if (!rst_n) begin
             ld2 <= 8'd0;
         end else begin
-            ld2 <= ld2_wire;
+            ld2[0] <= ld2_wire[0]; // 保持原有逻辑
+            ld2[1] <= gen_done;    // 将gen_done连接到ld2[1]
+            ld2[2] <= gen_error;   // 将gen_error连接到ld2[2]
+            ld2[7:3] <= 5'd0;      // 保持其他位为0
         end
     end
 
@@ -223,7 +220,7 @@ module sys_top(
 	wire gen_error;
 	wire gen_valid;
 	wire [2:0] gen_m, gen_n;
-	genrate_mode u_generate_operate(
+	generate_mode u_generate_operate(
 		.clk(clk),
 		.rst_n(rst_n),
 		.start(generate_mode_en),
