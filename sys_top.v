@@ -220,6 +220,7 @@ module sys_top(
 		.parse_done(parse_done),
 		.parse_error(parse_error)
 	);
+	
 
 
 	// --- Matrix Store (200位) ---
@@ -292,42 +293,68 @@ module sys_top(
 		.gen_valid(gen_valid),
 		.error(gen_error)
 	);
-	
+
+	// --- Print模块信号 ---
+	// Parse模式打印信号
+	wire uart_tx_en_parse;
+	wire [7:0] uart_tx_data_parse;
+	wire print_done_parse;
+
+	// Generate模式打印信号
+	wire uart_tx_en_gen;
+	wire [7:0] uart_tx_data_gen;
+	wire print_done_gen;
+
+	// 根据模式选择UART TX信号源
+	always @(*) begin
+		if (data_input_mode_en) begin
+			uart_tx_en = uart_tx_en_parse;
+			uart_tx_data = uart_tx_data_parse;
+		end else if (generate_mode_en) begin
+			uart_tx_en = uart_tx_en_gen;
+			uart_tx_data = uart_tx_data_gen;
+		end else begin
+			uart_tx_en = 1'b0;
+			uart_tx_data = 8'd0;
+		end
+	end
+
+	//Print for parse
+	matrix_printer u_print_for_parse (
+		.clk(clk),
+		.rst_n(rst_n),
+		.start(parse_done),
+		.matrix_flat(parsed_matrix_flat),
+		.dim_m(parsed_m),
+		.dim_n(parsed_n),
+		.use_crlf(1'b1),
+		.tx_start(uart_tx_en_parse),
+		.tx_data(uart_tx_data_parse),
+		.tx_busy(uart_tx_busy),
+		.done(print_done_parse)
+	);
 
 
     // --- Print  For Gnerate---
-	// wire [199:0] gen_flow_print;
-	// wire print_busy_gen, print_done_gen, print_dout_valid_gen;//待接线，向上翻找uart_tx模块寻求握手
-	// wire [7:0] print_dout_gen;
-	// print_matrix u_print_matrix_gen (
-	//     .clk(clk),
-	//     .rst_n(rst_n),
-	//     .data_input(gen_flow),
-	//     .width(gen_m),
-	//     .height(gen_n),
-	//     .start(display_mode_en),
-	//     .uart_tx_busy(uart_tx_busy),
-	//     .busy(print_busy_gen),
-	//     .done(print_done_gen),
-	//     .dout(print_dout_gen),
-	//     .dout_valid(print_dout_valid_gen)	
-	// );
+	matrix_printer u_print_for_generate (
+		.clk(clk),
+		.rst_n(rst_n),
+		.start(gen_valid),
+		.matrix_flat(gen_flow),
+		.dim_m(gen_m),
+		.dim_n(gen_n),
+		.use_crlf(1'b1),
+		.tx_start(uart_tx_en_gen),
+		.tx_data(uart_tx_data_gen),
+		.tx_busy(uart_tx_busy),
+		.done(print_done_gen)
+	);
     
 
 
     // --- Print table For Display---
-	// wire [49:0] info_table;
-	// wire print_busy_dis, print_done_dis;
-	// wire [7:0] print_dout_dis;
-	// print_table u_print_table_gen (
-	//     .clk(clk),
-	//     .rst_n(rst_n),
-	//     .start(display_mode_en),
-	//     .info_table(info_table),
-	//     .busy(print_busy_gen),
-	//     .done(print_done_gen),
-	//     .dout(print_dout_gen)
-	// );
+	wire [49:0] info_table;
+
 
 
 
