@@ -20,6 +20,7 @@ module sys_top(
 	input wire [7:0] command,
 	input wire btn_confirm,
 	input wire btn_exit,
+	input wire btn_countdown,  // 新增倒计时按钮
 	input wire uart_rxd,
 	output wire uart_txd,
 	output reg [7:0] ld2,
@@ -113,11 +114,12 @@ module sys_top(
 	wire [7:0] ld2_wire;
 	assign ld2_wire = {7'd0, led0_on};
 
-	// �������� (��ǰδʹ�ã�Ԥ��)
-	// assign seg_data0 = 8'd0;
-	// assign seg_data1 = 8'd0;
-	// assign seg_sel0 = 8'd0;
-	// assign seg_sel1 = 8'd0;
+
+	// ??????????????��???????????
+	assign seg_data0 = 8'd0;
+	assign seg_data1 = 8'd0;
+	assign seg_sel0 = 8'd0;
+	assign seg_sel1 = 8'd0;
 
 	// --- LED0��˸���� (�洢ָʾ) ---
 	always @(posedge clk or negedge rst_n) begin

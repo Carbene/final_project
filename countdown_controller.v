@@ -8,7 +8,7 @@ module countdown_controller#(
     input wire btn_confirm,   //不要用外面的btn_confirn，会和主状态机冲突，单开一个按钮
     output reg feedback,
     output reg [7:0] dk1_segments,
-    output reg [7:0] dk2_segments,
+    // output reg [7:0] dk2_segments,  // 移除，公用dk1_segments
     output reg [7:0] dk_digit_select
 );  
     parameter NUM_0 = 8'b1111_1100; 
@@ -106,14 +106,13 @@ module countdown_controller#(
         end
     end
 
-    // 数码管显示逻辑（高频交替显示十位和个位）
+    // 数码管显示逻辑（高频交替显示十位和个位，使用公用dk1_segments）
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             display_counter <= 16'd0;
             digit_sel <= 2'd0;
             dk1_segments <= 8'd0;
-            dk2_segments <= 8'd0;
-            dk_digit_select <= 8'b0000_0001; // 默认选择dk1
+            dk_digit_select <= 8'b0000_0001; // 默认选择十位
         end else begin
             if (display_counter < DISPLAY_DIV - 1) begin
                 display_counter <= display_counter + 1;
@@ -121,13 +120,11 @@ module countdown_controller#(
                 display_counter <= 16'd0;
                 digit_sel <= digit_sel + 1'b1; // 交替选择
                 if (digit_sel == 2'd0) begin
-                    dk1_segments <= tens_seg;
-                    dk2_segments <= 8'd0; // 关闭dk2
-                    dk_digit_select <= 8'b0000_0001; // 选择dk1 (十位)
+                    dk1_segments <= tens_seg;  // 显示十位
+                    dk_digit_select <= 8'b0000_0001; // 选择十位位
                 end else begin
-                    dk1_segments <= 8'd0; // 关闭dk1
-                    dk2_segments <= ones_seg;
-                    dk_digit_select <= 8'b0000_0010; // 选择dk2 (个位)
+                    dk1_segments <= ones_seg;  // 显示个位
+                    dk_digit_select <= 8'b0000_0010; // 选择个位位
                 end
             end
         end
