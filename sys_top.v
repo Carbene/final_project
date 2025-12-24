@@ -1,4 +1,4 @@
-// ??????ï“sys_top
+// ??????ï¿½sys_top
 
 module sys_top(
 	input wire clk,
@@ -66,12 +66,9 @@ module sys_top(
 	// --- Central Controller ---
 	wire data_input_mode_en;
 	wire generate_mode_en, display_mode_en, calculation_mode_en;
-	// ????mode_exitable??????????
-	wire input_mode_exitable = 1'b1;
-	wire generate_mode_exitable = 1'b1;
-	wire display_mode_exitable = 1'b1;
-	wire calculation_mode_exitable = 1'b1;//?
-    // mode????
+	
+
+    // modeÖ¸Ê¾??
     wire [7:0] led_wire;
     assign led_wire={4'b0,data_input_mode_en,generate_mode_en,display_mode_en,calculation_mode_en};
     always @(posedge clk or negedge rst_n) begin
@@ -86,16 +83,16 @@ module sys_top(
 	Central_Controller u_ctrl(
 		.clk(clk),
 		.rst_n(rst_n),
-		.command(command[2:0]), // ?????3¦Ë????????????
+		.command(command[2:0]), // ?????3ï¿½ï¿½????????????
 		.btn_confirm(btn_confirm_db),
 		.btn_exit(btn_exit_db),
-		.input_mode_exitable(input_mode_exitable),
+		
 		.data_input_mode_en(data_input_mode_en),
-		.generate_mode_exitable(generate_mode_exitable),
+		
 		.generate_mode_en(generate_mode_en),
-		.display_mode_exitable(display_mode_exitable),
+		
 		.display_mode_en(display_mode_en),
-		.calculation_mode_exitable(calculation_mode_exitable),
+		
 		.calculation_mode_en(calculation_mode_en)
 	);
 
@@ -112,7 +109,7 @@ module sys_top(
 	assign ld2_wire = {7'd0, led0_on};
 
 
-	// ??????????????¦Ä???????????
+	// ??????????????ï¿½ï¿½???????????
 	assign seg_data0 = 8'd0;
 	assign seg_data1 = 8'd0;
 	assign seg_sel0 = 8'd0;
@@ -190,7 +187,7 @@ module sys_top(
         if (!rst_n) begin
             ld2 <= 8'd0;
         end else begin
-            ld2[0] <= ld2_wire[0]; // §Õ?›¥???
+            ld2[0] <= ld2_wire[0]; // ï¿½ï¿½?ï¿½ï¿½???
             ld2[1] <= led1_on;     // gen_done??????
             ld2[2] <= led2_on;     // gen_error??????
             ld2[3] <= led3_on;     // gen_valid??????
@@ -198,7 +195,7 @@ module sys_top(
             ld2[5] <= ~debug_state[1];
             ld2[6] <= ~debug_state[2];
             ld2[7] <= ~debug_state[3];
-// ????????¦Ë?0
+// ????????ï¿½ï¿½?0
         end
     end
 
@@ -224,7 +221,7 @@ module sys_top(
 	);
 	
 	// --- Matrix Store (200??) ---
-    //???ÈÎ
+    //???ï¿½ï¿½
 	reg store_write_en;
 	reg [2:0] store_mat_col;
 	reg [2:0] store_mat_row;
@@ -250,7 +247,7 @@ module sys_top(
 		end
 	end
 
-	// ????§Õ?????????¦Ä??
+	// ????ï¿½ï¿½?????????ï¿½ï¿½??
 	wire [49:0] info_table;
 	wire [7:0] total_count;
 	matrix_storage #(
