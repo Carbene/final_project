@@ -25,6 +25,7 @@ module matrix_alu (
     output reg [2:0] result_m,
     output reg [2:0] result_n,
     output reg done,
+    output reg valid,
     output reg busy
 );
 
@@ -45,6 +46,7 @@ reg [3:0] k;                // 4bit 以覆盖乘法循环
 reg [15:0] temp_sum;
 reg [2:0] m_len, n_len;     // 锁存的A矩阵尺寸，防止运算中尺寸被清空
 reg [2:0] nb_len;           // 锁存的B矩阵列数（用于乘法）
+
 
 // ✅ 新增：流水线寄存器
 reg [15:0] mult_result_pipe1;
