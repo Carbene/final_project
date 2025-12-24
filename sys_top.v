@@ -198,6 +198,7 @@ module sys_top(
             ld2[5] <= ~debug_state[1];
             ld2[6] <= ~debug_state[2];
             ld2[7] <= ~debug_state[3];
+// ��������λΪ0
         end
     end
 
@@ -370,7 +371,7 @@ module sys_top(
 	print_table u_print_table (
 	.clk(clk),
 	.rst_n(rst_n),
-	.start(print_table_start),
+	.start(display_mode_en),
 	.uart_tx_busy(uart_tx_busy),
 	.uart_tx_en(uart_tx_en_table),
 	.uart_tx_data(uart_tx_data_table),
