@@ -39,6 +39,7 @@ module print_table(
     reg [7:0] t_tens, t_ones;
     reg [1:0] cur_cell_val;
     reg [19:0] cool_cnt;
+    reg header_done;
 
     localparam COOL_TIME = 20'd100_000; 
 
@@ -84,11 +85,13 @@ module print_table(
         if (!rst_n) begin
             uart_tx_en <= 0; uart_tx_data <= 0; busy <= 0; done <= 0;
             step_cnt <= 0; cell_idx <= 0; row <= 1; col <= 1; cool_cnt <= 0;
+            header_done <= 0;
         end else begin
             case (state)
                 S_IDLE: begin
                     busy <= 0; done <= 0; step_cnt <= 0; cell_idx <= 0;
                     row <= 1; col <= 1; cool_cnt <= 0; uart_tx_en <= 0;
+                    header_done <= 0;
                 end
 
                 S_FETCH: begin
@@ -111,8 +114,6 @@ module print_table(
                         4'd6:  uart_tx_data <= ASCII_STAR;
                         4'd7:  uart_tx_data <= ASCII_0 + cur_cell_val;
                         4'd8:  uart_tx_data <= ASCII_SPACE;
-                        4'd9:  uart_tx_data <= ASCII_CR;
-                        4'd10: uart_tx_data <= ASCII_LF;
                         default: uart_tx_data <= ASCII_SPACE;
                     endcase
                 end
@@ -125,11 +126,12 @@ module print_table(
                 S_NEXT_STEP: begin
                     cool_cnt <= 0;
                     // 如果当前单元格需要发送且字符没发完，步进 step_cnt
-                    if (cur_cell_val != 2'd0 && step_cnt < 4'd10) begin
+                    if (cur_cell_val != 2'd0 && step_cnt < 4'd8) begin
                         step_cnt <= step_cnt + 1'b1;
                     end else begin
                         // 切换到下一个单元格逻辑
-                        step_cnt <= 0;
+                        header_done <= 1'b1;
+                        step_cnt <= header_done ? 4'd3 : 4'd0; // 如果是第一次，下一步是发送第一字符
                         cell_idx <= cell_idx + 1'b1;
                         if (col < 3'd5) col <= col + 1'b1;
                         else begin

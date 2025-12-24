@@ -29,6 +29,16 @@ module matrix_storage #(
 reg [199:0] storage [0:49];//可改成多个小存储块
 reg [1:0] count [0:24];
 wire [49:0] output_50bit;
+reg write_en_d1; // 延迟一拍的信号
+
+always @(posedge clk or negedge rst_n) begin
+    if (!rst_n) begin
+        write_en_d1 <= 1'b0;
+    end else begin
+        write_en_d1 <= write_en; // 暂存当前的 write_en
+    end
+end
+wire write_pulse = write_en & (~write_en_d1);
 assign info_table = {
     count[24], count[23], count[22], count[21], count[20],
     count[19], count[18], count[17], count[16], count[15],
@@ -76,7 +86,7 @@ always @(posedge clk or negedge rst_n) begin
         read_en_after_cal <= 1'b0;
         
         // 第一级：地址计算
-        if (write_en) begin
+        if (write_pulse) begin
             wt_addr <= {wt_place, next_slot[wt_place]};
             write_en_after_cal <= 1'b1;
             
