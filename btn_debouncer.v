@@ -5,7 +5,7 @@
 // 按键消抖模块（两级同步 + 去抖计数 + 上升沿脉冲输出）
 // 输出：btn_out 为消抖后的电平，pulse 为上升沿单周期脉冲
 //==============================================================================
-module debounce (
+module btn_debouncer (
   input wire clk,
   input wire rst_n,
   input wire btn_in,

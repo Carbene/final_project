@@ -63,8 +63,6 @@ module sys_top(
 		.uart_tx_busy(uart_tx_busy)
 	);
 
-	
-
 	// --- Central Controller ---
 	wire data_input_mode_en;
 	wire generate_mode_en, display_mode_en, calculation_mode_en;
@@ -221,8 +219,6 @@ module sys_top(
 		.parse_error(parse_error)
 	);
 	
-
-
 	// --- Matrix Store (200位) ---
     //信号变换
 	reg store_write_en;
@@ -251,6 +247,8 @@ module sys_top(
 	end
 
 	// 只实现写入，读接口暂未用
+	wire [49:0] info_table;
+	wire [7:0] total_count;
 	matrix_storage #(
 		.DATAWIDTH(8),
 		.MAXNUM(2),
@@ -313,6 +311,9 @@ module sys_top(
 		end else if (generate_mode_en) begin
 			uart_tx_en = uart_tx_en_gen;
 			uart_tx_data = uart_tx_data_gen;
+		end else if (display_mode_en) begin
+			uart_tx_en = uart_tx_en_table;
+			uart_tx_data = uart_tx_data_table;
 		end else begin
 			uart_tx_en = 1'b0;
 			uart_tx_data = 8'd0;
@@ -334,7 +335,6 @@ module sys_top(
 		.done(print_done_parse)
 	);
 
-
     // --- Print  For Gnerate---
 	matrix_printer u_print_for_generate (
 		.clk(clk),
@@ -349,15 +349,21 @@ module sys_top(
 		.tx_busy(uart_tx_busy),
 		.done(print_done_gen)
 	);
-    
-
-
     // --- Print table For Display---
-	wire [49:0] info_table;
-
-
-
-
+	print_table u_print_table (
+	.clk(clk),
+	.rst_n(rst_n),
+	.start(display_mode_en),
+	.uart_tx_busy(uart_tx_busy),
+	.uart_tx_en(uart_tx_en_table),
+	.uart_tx_data(uart_tx_data_table),
+	.info_table(info_table),
+	.cnt(total_count),
+	.busy(print_busy_table),
+	.done(print_done_table),
+	.dout(),
+	.dout_valid()
+	);
 
     // --- Print for calculate ---
 

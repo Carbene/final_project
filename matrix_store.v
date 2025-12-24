@@ -30,11 +30,11 @@ reg [199:0] storage [0:49];//可改成多个小存储块
 reg [1:0] count [0:24];
 wire [49:0] output_50bit;
 assign info_table = {
-    count[0], count[1], count[2], count[3], count[4],
-    count[5], count[6], count[7], count[8], count[9],
-    count[10], count[11], count[12], count[13], count[14],
-    count[15], count[16], count[17], count[18], count[19],
-    count[20], count[21], count[22], count[23], count[24]
+    count[24], count[23], count[22], count[21], count[20],
+    count[19], count[18], count[17], count[16], count[15],
+    count[14], count[13], count[12], count[11], count[10],
+    count[9],  count[8],  count[7],  count[6],  count[5],
+    count[4],  count[3],  count[2],  count[1],  count[0]
 };
 reg next_slot [0:24];
 
