@@ -1,0 +1,136 @@
+module countdown_controller#(
+    parameter COUNT_TIME=15
+)(
+    input wire clk,
+    input wire rst_n,
+    input wire start,
+    output reg done,
+    input wire btn_confirm,   //不要用外面的btn_confirn，会和主状态机冲突，单开一个按钮
+    output reg feedback,
+    output reg [7:0] dk1_segments,
+    output reg [7:0] dk2_segments,
+    output reg [7:0] dk_digit_select
+);  
+    parameter NUM_0 = 8'b1111_1100; 
+    parameter NUM_1 = 8'b0110_0000; 
+    parameter NUM_2 = 8'b1101_1010; 
+    parameter NUM_3 = 8'b1111_0010; 
+    parameter NUM_4 = 8'b0110_0110; 
+    parameter NUM_5 = 8'b1011_0110; 
+    parameter NUM_6 = 8'b1011_1110;
+    parameter NUM_7 = 8'b1110_0000;
+    parameter NUM_8 = 8'b1111_1110;
+    parameter NUM_9 = 8'b1111_0110; 
+
+    // 倒计时相关寄存器
+    reg [26:0] sec_counter; // 秒计数器，100MHz时钟，1秒=100_000_000周期
+    reg [3:0] countdown_value; // 倒计时值，0-15
+    reg counting; // 是否正在倒计时
+    reg btn_pressed; // 是否在倒计时过程中按过按钮
+    localparam SEC_COUNT = 27'd100_000_000; // 1秒的时钟周期数
+
+    // 脉冲生成
+    reg feedback_pulse;
+    reg done_pulse;
+
+    // 显示相关寄存器
+    reg [15:0] display_counter; // 显示分频计数器，100MHz / 50000 ≈ 2kHz
+    localparam DISPLAY_DIV = 16'd50000;
+    reg [1:0] digit_sel; // 数码管选择：0=十位(dk1), 1=个位(dk2)
+    reg [7:0] tens_seg, ones_seg; // 十位和个位的段码
+
+    // 计算段码
+    always @(*) begin
+        case (countdown_value / 10)
+            0: tens_seg = NUM_0;
+            1: tens_seg = NUM_1;
+            default: tens_seg = NUM_0;
+        endcase
+        case (countdown_value % 10)
+            0: ones_seg = NUM_0;
+            1: ones_seg = NUM_1;
+            2: ones_seg = NUM_2;
+            3: ones_seg = NUM_3;
+            4: ones_seg = NUM_4;
+            5: ones_seg = NUM_5;
+            6: ones_seg = NUM_6;
+            7: ones_seg = NUM_7;
+            8: ones_seg = NUM_8;
+            9: ones_seg = NUM_9;
+            default: ones_seg = NUM_0;
+        endcase
+    end
+    always @(posedge clk or negedge rst_n) begin
+        if (!rst_n) begin
+            sec_counter <= 27'd0;
+            countdown_value <= COUNT_TIME;
+            counting <= 1'b0;
+            btn_pressed <= 1'b0;
+            feedback_pulse <= 1'b0;
+            done_pulse <= 1'b0;
+            done <= 1'b0;
+            feedback <= 1'b0;
+        end else begin
+            // 重置脉冲
+            feedback_pulse <= 1'b0;
+            done_pulse <= 1'b0;
+            done <= done_pulse;
+            feedback <= feedback_pulse;
+
+            if (start && !counting) begin
+                counting <= 1'b1;
+                countdown_value <= COUNT_TIME;
+                sec_counter <= 27'd0;
+                btn_pressed <= 1'b0;
+            end else if (counting) begin
+                if (btn_confirm) begin
+                    // 按钮按下，结束倒计时，拉高feedback一拍
+                    counting <= 1'b0;
+                    btn_pressed <= 1'b1;
+                    feedback_pulse <= 1'b1;
+                end else if (sec_counter < SEC_COUNT - 1) begin
+                    sec_counter <= sec_counter + 1;
+                end else begin
+                    sec_counter <= 27'd0;
+                    if (countdown_value > 0) begin
+                        countdown_value <= countdown_value - 1;
+                    end else begin
+                        // 倒计时自然结束，如果没按过按钮，拉高done一拍
+                        counting <= 1'b0;
+                        if (!btn_pressed) begin
+                            done_pulse <= 1'b1;
+                        end
+                    end
+                end
+            end
+        end
+    end
+
+    // 数码管显示逻辑（高频交替显示十位和个位）
+    always @(posedge clk or negedge rst_n) begin
+        if (!rst_n) begin
+            display_counter <= 16'd0;
+            digit_sel <= 2'd0;
+            dk1_segments <= 8'd0;
+            dk2_segments <= 8'd0;
+            dk_digit_select <= 8'b0000_0001; // 默认选择dk1
+        end else begin
+            if (display_counter < DISPLAY_DIV - 1) begin
+                display_counter <= display_counter + 1;
+            end else begin
+                display_counter <= 16'd0;
+                digit_sel <= digit_sel + 1'b1; // 交替选择
+                if (digit_sel == 2'd0) begin
+                    dk1_segments <= tens_seg;
+                    dk2_segments <= 8'd0; // 关闭dk2
+                    dk_digit_select <= 8'b0000_0001; // 选择dk1 (十位)
+                end else begin
+                    dk1_segments <= 8'd0; // 关闭dk1
+                    dk2_segments <= ones_seg;
+                    dk_digit_select <= 8'b0000_0010; // 选择dk2 (个位)
+                end
+            end
+        end
+    end
+
+endmodule
