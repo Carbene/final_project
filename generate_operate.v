@@ -104,6 +104,7 @@ module generate_mode#(
                 DONE: begin
                     gen_done <= 1'b1;
                     busy <= 1'b0;
+                    gen_valid <= 1'b0;
                 end
                 ERR: error <= 1'b1;
                 default: ;
@@ -122,9 +123,10 @@ module generate_mode#(
                 if (gen_m == 3'd0 || gen_n == 3'd0)
                     next_state = ERR;
                 else if(gen_valid)
-                    next_state = (gen_cnt == num) ? DONE : WAIT_WRITE;
+                    next_state =  WAIT_WRITE;
             end
-            WAIT_WRITE: next_state = GENERATE;
+            WAIT_WRITE: if(gen_cnt==num) next_state = DONE;
+                        else next_state = GENERATE;
             DONE: next_state = IDLE;
             ERR: next_state = RECEIVE_M;
             default: next_state = IDLE;
