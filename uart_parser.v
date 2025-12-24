@@ -1,12 +1,12 @@
 //==============================================================================
-// UART命令解析器（健壮版）
-// 需求：
-// - 格式 "m,n:a1,a2,...,a(m*n)"
-// - m,n 允许 1~5
-// - 元素必须 0~9，超出报错
-// - 元素不足自动补 0（保持初值0），不报错
-// - 元素超出 m*n 时忽略后续输入，完成
-// - 超时：未输入 5s 报错；开始输入后 0.5s 空闲即收尾（不足补零，已满则完成）
+// UART�������������׳�棩
+// ����
+// - ��ʽ "m n a_11 a_12 ... a_1m a_21 a_22 ... a_2n ... a_m1 a_m2 ... a_mn"
+// - m,n ���� 1~5
+// - Ԫ�ر��� 0~9����������
+// - Ԫ�ز����Զ��� 0�����ֳ�ֵ0����������
+// - Ԫ�س��� m*n ʱ���Ժ������룬���
+// - ��ʱ��δ���� 5s ��������ʼ����� 0.5s ���м���β�����㲹�㣬��������ɣ�
 //==============================================================================
 module uart_parser (
     input  wire       clk,
@@ -30,10 +30,10 @@ localparam PARSE_DATA = 3'd3;
 localparam DONE       = 3'd4;
 localparam ERROR      = 3'd5;
 
-// 超时参数 (默认100MHz时钟)
+// ��ʱ���� (Ĭ��100MHzʱ��)
 parameter integer CLK_FREQ_HZ         = 100_000_000;
-localparam [31:0] IDLE_TIMEOUT_CYCLES = CLK_FREQ_HZ * 5;   // 按下S2后未开始输入：5秒超时
-localparam [31:0] GAP_TIMEOUT_CYCLES  = CLK_FREQ_HZ / 2;   // 输入过程中/结束后无字符：0.5秒收尾/超时
+localparam [31:0] IDLE_TIMEOUT_CYCLES = CLK_FREQ_HZ * 10;  // ����S2��δ��ʼ���룺10�볬ʱ
+localparam [31:0] GAP_TIMEOUT_CYCLES  = CLK_FREQ_HZ * 2;   // ���������/���������ַ���2����β/��ʱ
 
 reg [2:0]  state;
 reg [4:0]  elem_index;
@@ -72,10 +72,14 @@ always @(posedge clk or negedge rst_n) begin
                     elem_index <= 5'd0;
                     current_num <= 8'd0;
                     num_started <= 1'b0;
-                    parsed_matrix_flat <= 200'd0; // 预置为0，便于不足补零
+                    parsed_matrix_flat <= 200'd0; // Ԥ��Ϊ0�����ڲ��㲹��
+                    parsed_m <= 3'd0;
+                    parsed_n <= 3'd0;
                     timeout_counter <= 32'd0;
                     seen_activity <= 1'b0;
                     target_reached <= 1'b0;
+                    parse_done <= 1'b0;  // �����ɱ�־
+                    parse_error <= 1'b0; // ��������־
                 end
             end
 
@@ -92,8 +96,8 @@ always @(posedge clk or negedge rst_n) begin
                     if (rx_data >= "0" && rx_data <= "9") begin
                         current_num <= current_num * 10 + (rx_data - "0");
                         num_started <= 1'b1;
-                    end else if (rx_data == " " && num_started) begin//改空格
-                        // m 范围 1~5
+                    end else if (rx_data == 8'h20 && num_started) begin // �ո�ָ���
+                        // m ��Χ 1~5
                         if (current_num >= 1 && current_num <= 5) begin
                             parsed_m <= current_num[2:0];
                             current_num <= 8'd0;
@@ -103,6 +107,8 @@ always @(posedge clk or negedge rst_n) begin
                             parse_error <= 1'b1;
                             state <= ERROR;
                         end
+                    end else if (rx_data == 8'h20 || rx_data == 8'h0D || rx_data == 8'h0A) begin
+                        // ����ǰ���ո�ͻ���
                     end else begin
                         parse_error <= 1'b1;
                         state <= ERROR;
@@ -116,7 +122,7 @@ always @(posedge clk or negedge rst_n) begin
                 if (!parse_enable) begin
                     state <= IDLE;
                 end else if (timeout_counter >= (seen_activity ? GAP_TIMEOUT_CYCLES : IDLE_TIMEOUT_CYCLES)) begin
-                    // 只完成了 m，视为错误
+                    // ֻ����� m����Ϊ����
                     parse_error <= 1'b1;
                     state <= ERROR;
                 end else if (rx_done) begin
@@ -126,8 +132,8 @@ always @(posedge clk or negedge rst_n) begin
                     if (rx_data >= "0" && rx_data <= "9") begin
                         current_num <= current_num * 10 + (rx_data - "0");
                         num_started <= 1'b1;
-                    end else if (rx_data == " " && num_started) begin //改空格
-                        // n 范围 1~5
+                    end else if (rx_data == 8'h20 && num_started) begin // �ո�ָ���
+                        // n ��Χ 1~5
                         if (current_num >= 1 && current_num <= 5) begin
                             parsed_n <= current_num[2:0];
                             current_num <= 8'd0;
@@ -137,6 +143,8 @@ always @(posedge clk or negedge rst_n) begin
                             parse_error <= 1'b1;
                             state <= ERROR;
                         end
+                    end else if (rx_data == 8'h20 || rx_data == 8'h0D || rx_data == 8'h0A) begin
+                        // ���Զ���ո�ͻ���
                     end else begin
                         parse_error <= 1'b1;
                         state <= ERROR;
@@ -150,7 +158,7 @@ always @(posedge clk or negedge rst_n) begin
                 if (!parse_enable) begin
                     state <= IDLE;
                 end else if (timeout_counter >= (seen_activity ? GAP_TIMEOUT_CYCLES : IDLE_TIMEOUT_CYCLES)) begin
-                    // 收尾：若正在输入最后一个数，先存入；不足的已是0
+                    // ��β���������������һ�������ȴ��룻���������0
                     if (num_started && !target_reached && (elem_index < target_elems)) begin
                         parsed_matrix_flat[elem_index*8 +: 8] <= current_num;
                         elem_index <= elem_index + 1'b1;
@@ -163,20 +171,28 @@ always @(posedge clk or negedge rst_n) begin
                     seen_activity <= 1'b1;
 
                     if (target_reached) begin
-                        // 已达上限，忽略后续输入
+                        // �Ѵ����ޣ����Ժ�������
                         parse_done <= 1'b1;
                         state <= DONE;
                     end else if (rx_data >= "0" && rx_data <= "9") begin
-                        // 只允许 0~9
-                        if (current_num * 10 + (rx_data - "0") > 9) begin
-                            parse_error <= 1'b1;
-                            state <= ERROR;
+                        // ���Ԫ�ط�Χ (ʹ��elem_min��elem_max)
+                        // �������֣�ֱ���ۼ�
+                        if (num_started) begin
+                            // �Ѿ���ʼ�������֣������ֵ�Ƿ��ڷ�Χ��
+                            if (current_num * 10 + (rx_data - "0") <= elem_max) begin
+                                current_num <= current_num * 10 + (rx_data - "0");
+                            end else begin
+                                // ������Χ������
+                                parse_error <= 1'b1;
+                                state <= ERROR;
+                            end
                         end else begin
-                            current_num <= current_num * 10 + (rx_data - "0");
+                            // ��һ������
+                            current_num <= rx_data - "0";
                             num_started <= 1'b1;
                         end
-                    end else if ((rx_data == " " || rx_data == 8'h0D || rx_data == 8'h0A) && num_started) begin
-                        // 完成一个元素
+                    end else if ((rx_data == 8'h20 || rx_data == 8'h0D || rx_data == 8'h0A) && num_started) begin
+                        // ���һ��Ԫ��
                         if (elem_index < target_elems) begin
                             parsed_matrix_flat[elem_index*8 +: 8] <= current_num;
                             elem_index <= elem_index + 1'b1;
@@ -189,14 +205,15 @@ always @(posedge clk or negedge rst_n) begin
                                 target_reached <= 1'b1;
                             end
                         end else begin
-                            // 超出上限：忽略后续
+                            // �������ޣ����Ժ���
                             parse_done <= 1'b1;
                             state <= DONE;
                             target_reached <= 1'b1;
                         end
-                    end else if (rx_data == 8'h20) begin
-                        // 忽略空格
+                    end else if (rx_data == 8'h20 || rx_data == 8'h0D || rx_data == 8'h0A) begin
+                        // ���Զ���Ŀո񡢻س�������
                     end else begin
+                        // �Ƿ��ַ�
                         parse_error <= 1'b1;
                         state <= ERROR;
                     end

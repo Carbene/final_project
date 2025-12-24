@@ -1,15 +1,15 @@
 // ========================================
-// ç³»ç»Ÿé¡¶å±‚æ¨¡å— sys_top
+// ÏµÍ³¶¥²ãÄ£¿é sys_top
 // ========================================
-// åŠŸèƒ½: çŸ©é˜µè¿ç®—ç³»ç»Ÿé¡¶å±‚é›†æˆ
+// ¹¦ÄÜ: ¾ØÕóÔËËãÏµÍ³¶¥²ã¼¯³É
 // 
-// ä¸»è¦åŠŸèƒ½æ¨¡å—:
-// 1. æ•°æ®è¾“å…¥æ¨¡å¼: UARTæ¥æ”¶ -> è§£æ -> å­˜å‚¨ -> æ‰“å°å›æ˜¾
-// 2. ç”Ÿæˆæ¨¡å¼: éšæœºç”ŸæˆçŸ©é˜µ -> å­˜å‚¨ -> æ‰“å°
-// 3. æ˜¾ç¤ºæ¨¡å¼: æŸ¥è¯¢å¹¶æ˜¾ç¤ºå·²å­˜å‚¨çš„çŸ©é˜µ
-// 4. è®¡ç®—æ¨¡å¼: çŸ©é˜µè¿ç®— (å¾…å®ç°)
+// Ö÷Òª¹¦ÄÜÄ£¿é:
+// 1. Êı¾İÊäÈëÄ£Ê½: UART½ÓÊÕ -> ½âÎö -> ´æ´¢ -> ´òÓ¡»ØÏÔ
+// 2. Éú³ÉÄ£Ê½: Ëæ»úÉú³É¾ØÕó -> ´æ´¢ -> ´òÓ¡
+// 3. ÏÔÊ¾Ä£Ê½: ²éÑ¯²¢ÏÔÊ¾ÒÑ´æ´¢µÄ¾ØÕó
+// 4. ¼ÆËãÄ£Ê½: ¾ØÕóÔËËã (´ıÊµÏÖ)
 //
-// æ•°æ®æµ:
+// Êı¾İÁ÷:
 //   UART RX -> Parser/Generator -> Matrix Storage -> Display/Calculate
 //                                                  -> UART TX
 // ========================================
@@ -30,7 +30,7 @@ module sys_top(
 );
 
 
-	// --- æŒ‰é”®é˜²æŠ– Button Debouncer ---
+	// --- °´¼ü·À¶¶ Button Debouncer ---
 	wire btn_confirm_db;
 	btn_debouncer u_btn_debouncer(
 		.clk(clk),
@@ -39,7 +39,7 @@ module sys_top(
 		.btn_out(),
         .pulse(btn_confirm_db)
 	);
-    // --- UART RX ä¸²å£æ¥æ”¶ ---
+    // --- UART RX ´®¿Ú½ÓÊÕ ---
 	wire uart_rx_done;
 	wire [7:0] uart_rx_data;
 	uart_rx u_uart_rx(
@@ -74,7 +74,7 @@ module sys_top(
 	wire calculation_mode_en;
 	
 
-    // modeÖ¸Ê¾??
+    // mode????
     wire [7:0] led_wire;
     assign led_wire={4'b0,data_input_mode_en,generate_mode_en,display_mode_en,calculation_mode_en};
     always @(posedge clk or negedge rst_n) begin
@@ -101,25 +101,25 @@ module sys_top(
 		.calculation_mode_en(calculation_mode_en)
 	);
 
-	// --- LEDçŠ¶æ€æŒ‡ç¤ºç¯æ§åˆ¶ ---
+	// --- LED×´Ì¬Ö¸Ê¾µÆ¿ØÖÆ ---
 	reg led0_on;
-	reg [24:0] led0_cnt; // 0.5ç§’é—ªçƒè®¡æ•°å™¨ï¼Œ50MHzæ—¶é’Ÿä¸‹0.5s=25_000_000
-	reg led1_on; // gen_doneçŠ¶æ€æŒ‡ç¤º
+	reg [24:0] led0_cnt; // 0.5ÃëÉÁË¸¼ÆÊıÆ÷£¬50MHzÊ±ÖÓÏÂ0.5s=25_000_000
+	reg led1_on; // gen_done×´Ì¬Ö¸Ê¾
 	reg [24:0] led1_cnt;
-	reg led2_on; // gen_errorçŠ¶æ€æŒ‡ç¤º
+	reg led2_on; // gen_error×´Ì¬Ö¸Ê¾
 	reg [24:0] led2_cnt;
-	reg led3_on; // gen_validçŠ¶æ€æŒ‡ç¤º
+	reg led3_on; // gen_valid×´Ì¬Ö¸Ê¾
 	reg [24:0] led3_cnt;
 	wire [7:0] ld2_wire;
 	assign ld2_wire = {7'd0, led0_on};
 
-	// æ•°ç ç®¡è¾“å‡º (å½“å‰æœªä½¿ç”¨ï¼Œé¢„ç•™)
+	// ÊıÂë¹ÜÊä³ö (µ±Ç°Î´Ê¹ÓÃ£¬Ô¤Áô)
 	// assign seg_data0 = 8'd0;
 	// assign seg_data1 = 8'd0;
 	// assign seg_sel0 = 8'd0;
 	// assign seg_sel1 = 8'd0;
 
-	// --- LED0é—ªçƒæ§åˆ¶ (å­˜å‚¨æŒ‡ç¤º) ---
+	// --- LED0ÉÁË¸¿ØÖÆ (´æ´¢Ö¸Ê¾) ---
 	always @(posedge clk or negedge rst_n) begin
 	    if (!rst_n) begin
 	        led0_on <= 1'b0;
@@ -136,7 +136,7 @@ module sys_top(
 	    end
 	end
 
-	// --- LED1é—ªçƒæ§åˆ¶ (ç”Ÿæˆå®ŒæˆæŒ‡ç¤º) ---
+	// --- LED1ÉÁË¸¿ØÖÆ (Éú³ÉÍê³ÉÖ¸Ê¾) ---
 	always @(posedge clk or negedge rst_n) begin
 	    if (!rst_n) begin
 	        led1_on <= 1'b0;
@@ -153,7 +153,7 @@ module sys_top(
 	    end
 	end
 
-	// --- LED2é—ªçƒæ§åˆ¶ (ç”Ÿæˆé”™è¯¯æŒ‡ç¤º) ---
+	// --- LED2ÉÁË¸¿ØÖÆ (Éú³É´íÎóÖ¸Ê¾) ---
 	always @(posedge clk or negedge rst_n) begin
 	    if (!rst_n) begin
 	        led2_on <= 1'b0;
@@ -170,7 +170,7 @@ module sys_top(
 	    end
 	end
 
-	// --- LED3é—ªçƒæ§åˆ¶ (ç”Ÿæˆæœ‰æ•ˆæŒ‡ç¤º) ---
+	// --- LED3ÉÁË¸¿ØÖÆ (Éú³ÉÓĞĞ§Ö¸Ê¾) ---
 	always @(posedge clk or negedge rst_n) begin
 	    if (!rst_n) begin
 	        led3_on <= 1'b0;
@@ -187,26 +187,26 @@ module sys_top(
 	    end
 	end
 
-    // LD2ç¯ç»„èµ‹å€¼ (ç»¼åˆçŠ¶æ€æ˜¾ç¤º)
+    // LD2µÆ×é¸³Öµ (×ÛºÏ×´Ì¬ÏÔÊ¾)
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             ld2 <= 8'd0;
         end else begin
-            ld2[0] <= ld2_wire[0];  // çŸ©é˜µå­˜å‚¨æŒ‡ç¤º
-            ld2[1] <= led1_on;      // gen_doneç”Ÿæˆå®Œæˆ
-            ld2[2] <= led2_on;      // gen_errorç”Ÿæˆé”™è¯¯
-            ld2[3] <= led3_on;      // gen_validç”Ÿæˆæœ‰æ•ˆ
-            ld2[4] <= ~debug_state[0]; // print_tableçŠ¶æ€æœºè°ƒè¯•
+            ld2[0] <= ld2_wire[0];  // ¾ØÕó´æ´¢Ö¸Ê¾
+            ld2[1] <= led1_on;      // gen_doneÉú³ÉÍê³É
+            ld2[2] <= led2_on;      // gen_errorÉú³É´íÎó
+            ld2[3] <= led3_on;      // gen_validÉú³ÉÓĞĞ§
+            ld2[4] <= ~debug_state[0]; // print_table×´Ì¬»úµ÷ÊÔ
             ld2[5] <= ~debug_state[1];
             ld2[6] <= ~debug_state[2];
             ld2[7] <= ~debug_state[3];
         end
     end
 
-	// --- UART Parser ä¸²å£è§£æå™¨ ---
-	// åŠŸèƒ½: è§£æUARTæ¥æ”¶çš„çŸ©é˜µæ•°æ®æ ¼å¼
-	// è¾“å…¥: uart_rx_data, uart_rx_done, data_input_mode_en
-	// è¾“å‡º: parsed_m, parsed_n, parsed_matrix_flat, parse_done, parse_error
+	// --- UART Parser ´®¿Ú½âÎöÆ÷ ---
+	// ¹¦ÄÜ: ½âÎöUART½ÓÊÕµÄ¾ØÕóÊı¾İ¸ñÊ½
+	// ÊäÈë: uart_rx_data, uart_rx_done, data_input_mode_en
+	// Êä³ö: parsed_m, parsed_n, parsed_matrix_flat, parse_done, parse_error
 	wire [2:0] parsed_m, parsed_n;
 	wire [199:0] parsed_matrix_flat;
 	wire parse_done, parse_error;
@@ -224,9 +224,9 @@ module sys_top(
 		.parse_done(parse_done),
 		.parse_error(parse_error)
 	);
-	// --- Matrix Store çŸ©é˜µå­˜å‚¨æ§åˆ¶é€»è¾‘ ---
-	// åŠŸèƒ½: å°†è§£ææˆ–ç”Ÿæˆçš„çŸ©é˜µå†™å…¥å­˜å‚¨æ¨¡å—
-	// è§¦å‘æ¡ä»¶: parse_done (è§£æå®Œæˆ) æˆ– gen_valid (ç”Ÿæˆæœ‰æ•ˆ)
+	// --- Matrix Store ¾ØÕó´æ´¢¿ØÖÆÂß¼­ ---
+	// ¹¦ÄÜ: ½«½âÎö»òÉú³ÉµÄ¾ØÕóĞ´Èë´æ´¢Ä£¿é
+	// ´¥·¢Ìõ¼ş: parse_done (½âÎöÍê³É) »ò gen_valid (Éú³ÉÓĞĞ§)
 	reg store_write_en;
 	reg [2:0] store_mat_col;
 	reg [2:0] store_mat_row;
@@ -238,13 +238,13 @@ module sys_top(
 			store_mat_row <= 3'd0;
 			store_data_flow <= 200'd0;
 		end else if (parse_done) begin
-			// æ•°æ®è¾“å…¥æ¨¡å¼: å­˜å‚¨è§£æåçš„çŸ©é˜µ
+			// Êı¾İÊäÈëÄ£Ê½: ´æ´¢½âÎöºóµÄ¾ØÕó
 			store_write_en <= 1'b1;
 			store_mat_col <= parsed_m;
 			store_mat_row <= parsed_n;
 			store_data_flow <= parsed_matrix_flat;
 		end else if (gen_valid) begin
-			// ç”Ÿæˆæ¨¡å¼: å­˜å‚¨ç”Ÿæˆçš„çŸ©é˜µ
+			// Éú³ÉÄ£Ê½: ´æ´¢Éú³ÉµÄ¾ØÕó
 			store_write_en <= 1'b1;
 			store_mat_col <= gen_m;
 			store_mat_row <= gen_n;
@@ -254,17 +254,17 @@ module sys_top(
 		end
 	end
 
-	// --- Matrix Storage çŸ©é˜µå­˜å‚¨æ¨¡å— ---
-	// ç”¨äºå­˜å‚¨è§£æå’Œç”Ÿæˆçš„çŸ©é˜µæ•°æ®
-	wire [49:0] info_table;        // çŸ©é˜µä¿¡æ¯è¡¨ (æ¯ä¸ªçŸ©é˜µ5å­—èŠ‚:è¡Œã€åˆ—ã€IDç­‰)
-	wire [7:0] total_count;        // å·²å­˜å‚¨çŸ©é˜µæ€»æ•°
-	wire store_read_en;            // è¯»ä½¿èƒ½ (è¿æ¥åˆ°displayæ¨¡å—)
-	wire [2:0] store_rd_col;       // è¯»å–çš„çŸ©é˜µåˆ—æ•°
-	wire [2:0] store_rd_row;       // è¯»å–çš„çŸ©é˜µè¡Œæ•°
-	wire [1:0] store_rd_mat_index; // è¯»å–çš„çŸ©é˜µç´¢å¼•
-	wire [199:0] store_rd_data_flow; // è¯»å–çš„çŸ©é˜µæ•°æ®æµ
-	wire store_rd_ready;           // è¯»å–å‡†å¤‡ä¿¡å·
-	wire store_err_rd;             // è¯»å–é”™è¯¯ä¿¡å·
+	// --- Matrix Storage ¾ØÕó´æ´¢Ä£¿é ---
+	// ÓÃÓÚ´æ´¢½âÎöºÍÉú³ÉµÄ¾ØÕóÊı¾İ
+	wire [49:0] info_table;        // ¾ØÕóĞÅÏ¢±í (Ã¿¸ö¾ØÕó5×Ö½Ú:ĞĞ¡¢ÁĞ¡¢IDµÈ)
+	wire [7:0] total_count;        // ÒÑ´æ´¢¾ØÕó×ÜÊı
+	wire store_read_en;            // ¶ÁÊ¹ÄÜ (Á¬½Óµ½displayÄ£¿é)
+	wire [2:0] store_rd_col;       // ¶ÁÈ¡µÄ¾ØÕóÁĞÊı
+	wire [2:0] store_rd_row;       // ¶ÁÈ¡µÄ¾ØÕóĞĞÊı
+	wire [1:0] store_rd_mat_index; // ¶ÁÈ¡µÄ¾ØÕóË÷Òı
+	wire [199:0] store_rd_data_flow; // ¶ÁÈ¡µÄ¾ØÕóÊı¾İÁ÷
+	wire store_rd_ready;           // ¶ÁÈ¡×¼±¸ĞÅºÅ
+	wire store_err_rd;             // ¶ÁÈ¡´íÎóĞÅºÅ
 	
 	matrix_storage #(
 		.DATAWIDTH(8),
@@ -273,12 +273,12 @@ module sys_top(
 	) u_store (
 		.clk(clk),
 		.rst_n(rst_n),
-		// å†™æ¥å£ - è¿æ¥åˆ°parseå’Œgenerateæ¨¡å—
+		// Ğ´½Ó¿Ú - Á¬½Óµ½parseºÍgenerateÄ£¿é
 		.write_en(store_write_en),
 		.mat_col(store_mat_col),
 		.mat_row(store_mat_row),
 		.data_flow(store_data_flow),
-		// è¯»æ¥å£ - è¿æ¥åˆ°displayæ¨¡å—
+		// ¶Á½Ó¿Ú - Á¬½Óµ½displayÄ£¿é
 		.read_en(store_read_en),
 		.rd_col(store_rd_col),
 		.rd_row(store_rd_row),
@@ -286,14 +286,14 @@ module sys_top(
 		.rd_data_flow(store_rd_data_flow),
 		.rd_ready(store_rd_ready),
 		.err_rd(store_err_rd),
-		// çŠ¶æ€è¾“å‡º
+		// ×´Ì¬Êä³ö
 		.total_count(total_count),
 		.info_table(info_table)
 	);
 	
-	// --- Generate Mode çŸ©é˜µç”Ÿæˆæ¨¡å¼ ---
-	// åŠŸèƒ½: æ ¹æ®UARTè¾“å…¥çš„å‚æ•°éšæœºç”ŸæˆçŸ©é˜µ
-	// å¤ç”¨UART RXçš„æ•°æ®æµ
+	// --- Generate Mode ¾ØÕóÉú³ÉÄ£Ê½ ---
+	// ¹¦ÄÜ: ¸ù¾İUARTÊäÈëµÄ²ÎÊıËæ»úÉú³É¾ØÕó
+	// ¸´ÓÃUART RXµÄÊı¾İÁ÷
 	wire [7:0] uart_data_gen;
 	assign uart_data_gen = uart_rx_data;
 	wire [199:0] gen_flow;
@@ -315,33 +315,33 @@ module sys_top(
 		.error(gen_error)
 	);
 
-	// --- Printæ‰“å°æ§åˆ¶ UART TXå¤šè·¯å¤ç”¨ ---
-	// Parseæ¨¡å¼çš„UARTè¾“å‡ºä¿¡å·
+	// --- Print´òÓ¡¿ØÖÆ UART TX¶àÂ·¸´ÓÃ ---
+	// ParseÄ£Ê½µÄUARTÊä³öĞÅºÅ
 	wire uart_tx_en_parse;
 	wire [7:0] uart_tx_data_parse;
 	wire print_done_parse;
 
-	// Generateæ¨¡å¼çš„UARTè¾“å‡ºä¿¡å·
+	// GenerateÄ£Ê½µÄUARTÊä³öĞÅºÅ
 	wire uart_tx_en_gen;
 	wire [7:0] uart_tx_data_gen;
 	wire print_done_gen;
 
-	// Displayæ¨¡å¼çš„UARTè¾“å‡ºä¿¡å·
+	// DisplayÄ£Ê½µÄUARTÊä³öĞÅºÅ
 	wire uart_tx_en_display;
 	wire [7:0] uart_tx_data_display;
 
-	// UART TXå¤šè·¯å¤ç”¨å™¨ - æ ¹æ®å½“å‰æ¨¡å¼é€‰æ‹©è¾“å‡ºæº
+	// UART TX¶àÂ·¸´ÓÃÆ÷ - ¸ù¾İµ±Ç°Ä£Ê½Ñ¡ÔñÊä³öÔ´
 	always @(*) begin
 		if (data_input_mode_en) begin
-			// æ•°æ®è¾“å…¥æ¨¡å¼ - è¾“å‡ºè§£æåçš„çŸ©é˜µ
+			// Êı¾İÊäÈëÄ£Ê½ - Êä³ö½âÎöºóµÄ¾ØÕó
 			uart_tx_en = uart_tx_en_parse;
 			uart_tx_data = uart_tx_data_parse;
 		end else if (generate_mode_en) begin
-			// ç”Ÿæˆæ¨¡å¼ - è¾“å‡ºç”Ÿæˆçš„çŸ©é˜µ
+			// Éú³ÉÄ£Ê½ - Êä³öÉú³ÉµÄ¾ØÕó
 			uart_tx_en = uart_tx_en_gen;
 			uart_tx_data = uart_tx_data_gen;
 		end else if (display_mode_en) begin
-			// æ˜¾ç¤ºæ¨¡å¼ - è¾“å‡ºè¡¨æ ¼æˆ–æŒ‡å®šçŸ©é˜µ
+			// ÏÔÊ¾Ä£Ê½ - Êä³ö±í¸ñ»òÖ¸¶¨¾ØÕó
 			if(print_busy_table) begin
 				uart_tx_en = uart_tx_en_table;
 				uart_tx_data = uart_tx_data_table;
@@ -355,185 +355,186 @@ module sys_top(
 		end
 	end
 
-	// --- Matrix Printer for Parse è§£ææ¨¡å¼çŸ©é˜µæ‰“å° ---
-	// æ•°æ®æµ: uart_parser -> parsed_matrix_flat -> matrix_printer -> UART TX
+	// --- Matrix Printer for Parse ½âÎöÄ£Ê½¾ØÕó´òÓ¡ ---
+	// Êı¾İÁ÷: uart_parser -> parsed_matrix_flat -> matrix_printer -> UART TX
 	matrix_printer u_print_for_parse (
 		.clk(clk),
 		.rst_n(rst_n),
-		.start(parse_done),              // è§£æå®Œæˆæ—¶å¯åŠ¨æ‰“å°
-		.matrix_flat(parsed_matrix_flat), // è¾“å…¥: è§£æåçš„çŸ©é˜µæ•°æ®
-		.dimM(parsed_m),                 // è¾“å…¥: çŸ©é˜µè¡Œæ•°
-		.dimN(parsed_n),                 // è¾“å…¥: çŸ©é˜µåˆ—æ•°
-		.use_crlf(1'b1),                 // ä½¿ç”¨å›è½¦æ¢è¡Œ
-		.tx_start(uart_tx_en_parse),     // è¾“å‡º: UARTå‘é€ä½¿èƒ½
-		.tx_data(uart_tx_data_parse),    // è¾“å‡º: UARTå‘é€æ•°æ®
-		.tx_busy(uart_tx_busy),          // è¾“å…¥: UARTå¿™çŠ¶æ€
-		.done(print_done_parse)          // è¾“å‡º: æ‰“å°å®Œæˆ
+		.start(parse_done),              // ½âÎöÍê³ÉÊ±Æô¶¯´òÓ¡
+		.matrix_flat(parsed_matrix_flat), // ÊäÈë: ½âÎöºóµÄ¾ØÕóÊı¾İ
+		.dimM(parsed_m),                 // ÊäÈë: ¾ØÕóĞĞÊı
+		.dimN(parsed_n),                 // ÊäÈë: ¾ØÕóÁĞÊı
+		.use_crlf(1'b1),                 // Ê¹ÓÃ»Ø³µ»»ĞĞ
+		.tx_start(uart_tx_en_parse),     // Êä³ö: UART·¢ËÍÊ¹ÄÜ
+		.tx_data(uart_tx_data_parse),    // Êä³ö: UART·¢ËÍÊı¾İ
+		.tx_busy(uart_tx_busy),          // ÊäÈë: UARTÃ¦×´Ì¬
+		.done(print_done_parse)          // Êä³ö: ´òÓ¡Íê³É
 	);
 	
-    // --- Matrix Printer for Generate ç”Ÿæˆæ¨¡å¼çŸ©é˜µæ‰“å° ---
-    // æ•°æ®æµ: generate_mode -> gen_flow -> matrix_printer -> UART TX
+    // --- Matrix Printer for Generate Éú³ÉÄ£Ê½¾ØÕó´òÓ¡ ---
+    // Êı¾İÁ÷: generate_mode -> gen_flow -> matrix_printer -> UART TX
 	matrix_printer u_print_for_generate (
 		.clk(clk),
 		.rst_n(rst_n),
-		.start(gen_valid),            // ç”Ÿæˆæœ‰æ•ˆæ—¶å¯åŠ¨æ‰“å°
-		.matrix_flat(gen_flow),       // è¾“å…¥: ç”Ÿæˆçš„çŸ©é˜µæ•°æ®
-		.dimM(gen_m),                 // è¾“å…¥: ç”Ÿæˆçš„çŸ©é˜µè¡Œæ•°
-		.dimN(gen_n),                 // è¾“å…¥: ç”Ÿæˆçš„çŸ©é˜µåˆ—æ•°
-		.use_crlf(1'b1),              // ä½¿ç”¨å›è½¦æ¢è¡Œ
-		.tx_start(uart_tx_en_gen),    // è¾“å‡º: UARTå‘é€ä½¿èƒ½
-		.tx_data(uart_tx_data_gen),   // è¾“å‡º: UARTå‘é€æ•°æ®
-		.tx_busy(uart_tx_busy),       // è¾“å…¥: UARTå¿™çŠ¶æ€
-		.done(print_done_gen)         // è¾“å‡º: æ‰“å°å®Œæˆ
+		.start(gen_valid),            // Éú³ÉÓĞĞ§Ê±Æô¶¯´òÓ¡
+		.matrix_flat(gen_flow),       // ÊäÈë: Éú³ÉµÄ¾ØÕóÊı¾İ
+		.dimM(gen_m),                 // ÊäÈë: Éú³ÉµÄ¾ØÕóĞĞÊı
+		.dimN(gen_n),                 // ÊäÈë: Éú³ÉµÄ¾ØÕóÁĞÊı
+		.use_crlf(1'b1),              // Ê¹ÓÃ»Ø³µ»»ĞĞ
+		.tx_start(uart_tx_en_gen),    // Êä³ö: UART·¢ËÍÊ¹ÄÜ
+		.tx_data(uart_tx_data_gen),   // Êä³ö: UART·¢ËÍÊı¾İ
+		.tx_busy(uart_tx_busy),       // ÊäÈë: UARTÃ¦×´Ì¬
+		.done(print_done_gen)         // Êä³ö: ´òÓ¡Íê³É
 	);
 	
-	// ========== Display Mode æ˜¾ç¤ºæ¨¡å¼ ==========
-	// æ•°æ®æµ: display_mode_en -> matrix_selector_display -> print_table æˆ– print_specified_dim_matrix
-	//        -> matrix_storage (è¯»å–) -> matrix_printer -> UART TX
+	// ========== Display Mode ÏÔÊ¾Ä£Ê½ ==========
+	// Êı¾İÁ÷: display_mode_en -> matrix_selector_display -> print_table »ò print_specified_dim_matrix
+	//        -> matrix_storage (¶ÁÈ¡) -> matrix_printer -> UART TX
 	
-	// --- Print Table æ‰“å°è¡¨æ ¼ä¿¡å· ---
-	wire uart_tx_en_table;           // è¡¨æ ¼æ‰“å°UARTä½¿èƒ½
-	wire [7:0] uart_tx_data_table;   // è¡¨æ ¼æ‰“å°UARTæ•°æ®
-	wire print_busy_table;           // è¡¨æ ¼æ‰“å°å¿™çŠ¶æ€
-	wire print_done_table;           // è¡¨æ ¼æ‰“å°å®Œæˆ
-	wire print_table_start;          // è¡¨æ ¼æ‰“å°å¯åŠ¨ä¿¡å·
-	wire [3:0] debug_state;          // è°ƒè¯•çŠ¶æ€ (ç”¨äºLEDæ˜¾ç¤º)
+	// --- Print Table ´òÓ¡±í¸ñĞÅºÅ ---
+	wire uart_tx_en_table;           // ±í¸ñ´òÓ¡UARTÊ¹ÄÜ
+	wire [7:0] uart_tx_data_table;   // ±í¸ñ´òÓ¡UARTÊı¾İ
+	wire print_busy_table;           // ±í¸ñ´òÓ¡Ã¦×´Ì¬
+	wire print_done_table;           // ±í¸ñ´òÓ¡Íê³É
+	wire print_table_start;          // ±í¸ñ´òÓ¡Æô¶¯ĞÅºÅ
+	wire [3:0] debug_state;          // µ÷ÊÔ×´Ì¬ (ÓÃÓÚLEDÏÔÊ¾)
 	
-	// Print Table æ¨¡å— - æ‰“å°çŸ©é˜µä¿¡æ¯è¡¨
-	// æ•°æ®æµ: info_table -> print_table -> UART TX
+	// Print Table Ä£¿é - ´òÓ¡¾ØÕóĞÅÏ¢±í
+	// Êı¾İÁ÷: info_table -> print_table -> UART TX
 	print_table u_print_table (
 		.clk(clk),
 		.rst_n(rst_n),
-		.start(print_table_start),         // è¾“å…¥: å¯åŠ¨æ‰“å°è¡¨æ ¼
-		.uart_tx_busy(uart_tx_busy),       // è¾“å…¥: UARTå¿™çŠ¶æ€
-		.uart_tx_en(uart_tx_en_table),     // è¾“å‡º: UARTå‘é€ä½¿èƒ½
-		.uart_tx_data(uart_tx_data_table), // è¾“å‡º: UARTå‘é€æ•°æ®
-		.info_table(info_table),           // è¾“å…¥: çŸ©é˜µä¿¡æ¯è¡¨
-		.cnt(total_count),                 // è¾“å…¥: çŸ©é˜µæ€»æ•°
-		.busy(print_busy_table),           // è¾“å‡º: æ¨¡å—å¿™çŠ¶æ€
-		.done(print_done_table),           // è¾“å‡º: æ‰“å°å®Œæˆ
-		.current_state(debug_state)        // è¾“å‡º: å½“å‰çŠ¶æ€
+		.start(print_table_start),         // ÊäÈë: Æô¶¯´òÓ¡±í¸ñ
+		.uart_tx_busy(uart_tx_busy),       // ÊäÈë: UARTÃ¦×´Ì¬
+		.uart_tx_en(uart_tx_en_table),     // Êä³ö: UART·¢ËÍÊ¹ÄÜ
+		.uart_tx_data(uart_tx_data_table), // Êä³ö: UART·¢ËÍÊı¾İ
+		.info_table(info_table),           // ÊäÈë: ¾ØÕóĞÅÏ¢±í
+		.cnt(total_count),                 // ÊäÈë: ¾ØÕó×ÜÊı
+		.busy(print_busy_table),           // Êä³ö: Ä£¿éÃ¦×´Ì¬
+		.done(print_done_table),           // Êä³ö: ´òÓ¡Íê³É
+		.current_state(debug_state)        // Êä³ö: µ±Ç°×´Ì¬
 	);
 
-	// --- Print Specified Matrix æ‰“å°æŒ‡å®šçŸ©é˜µä¿¡å· ---
-	wire print_spec_start;               // å¯åŠ¨æ‰“å°æŒ‡å®šçŸ©é˜µ
-	wire [2:0] spec_dim_m, spec_dim_n;   // ç”¨æˆ·è¾“å…¥çš„ç›®æ ‡çŸ©é˜µç»´åº¦
-	wire print_spec_busy;                // æ‰“å°æŒ‡å®šçŸ©é˜µå¿™çŠ¶æ€
-	wire print_spec_done;                // æ‰“å°æŒ‡å®šçŸ©é˜µå®Œæˆ
-	wire print_spec_error;               // æ‰“å°æŒ‡å®šçŸ©é˜µé”™è¯¯
+	// --- Print Specified Matrix ´òÓ¡Ö¸¶¨¾ØÕóĞÅºÅ ---
+	wire print_spec_start;               // Æô¶¯´òÓ¡Ö¸¶¨¾ØÕó
+	wire [2:0] spec_dim_m, spec_dim_n;   // ÓÃ»§ÊäÈëµÄÄ¿±ê¾ØÕóÎ¬¶È
+	wire print_spec_busy;                // ´òÓ¡Ö¸¶¨¾ØÕóÃ¦×´Ì¬
+	wire print_spec_done;                // ´òÓ¡Ö¸¶¨¾ØÕóÍê³É
+	wire print_spec_error;               // ´òÓ¡Ö¸¶¨¾ØÕó´íÎó
 	
-	// Matrix Printer for Display æ˜¾ç¤ºæ¨¡å¼çŸ©é˜µæ‰“å°ä¿¡å·
-	wire matrix_print_start;             // å¯åŠ¨çŸ©é˜µæ‰“å°
-	wire [199:0] matrix_flat;            // è¦æ‰“å°çš„çŸ©é˜µæ•°æ®
-	wire [2:0] matrix_dim_m, matrix_dim_n; // çŸ©é˜µç»´åº¦
-	wire matrix_print_busy;              // çŸ©é˜µæ‰“å°å¿™çŠ¶æ€
-	wire matrix_print_done;              // çŸ©é˜µæ‰“å°å®Œæˆ
-	wire uart_tx_en_spec;                // æŒ‡å®šçŸ©é˜µæ‰“å°UARTä½¿èƒ½
-	wire [7:0] uart_tx_data_spec;        // æŒ‡å®šçŸ©é˜µæ‰“å°UARTæ•°æ®
+	// Matrix Printer for Display ÏÔÊ¾Ä£Ê½¾ØÕó´òÓ¡ĞÅºÅ
+	wire matrix_print_start;             // Æô¶¯¾ØÕó´òÓ¡
+	wire [199:0] matrix_flat;            // Òª´òÓ¡µÄ¾ØÕóÊı¾İ (À´×Ôprint_specified_dim_matrix)
+	// ¾ØÕóÎ¬¶ÈÖ±½ÓÊ¹ÓÃspec_dim (ÒòÎªprint_specified_dim_matrix»áÈ·±£²éÑ¯µ½µÄ¾ØÕóÎ¬¶ÈÓëspec_dimÆ¥Åä)
+	// wire [2:0] matrix_dim_m, matrix_dim_n; // ²»ĞèÒªµ¥¶ÀµÄwire£¬Ö±½ÓÊ¹ÓÃspec_dim_m/n
+	wire matrix_print_busy;              // ¾ØÕó´òÓ¡Ã¦×´Ì¬
+	wire matrix_print_done;              // ¾ØÕó´òÓ¡Íê³É
+	wire uart_tx_en_spec;                // Ö¸¶¨¾ØÕó´òÓ¡UARTÊ¹ÄÜ (Î¨Ò»µÄUARTÊä³öÔ´)
+	wire [7:0] uart_tx_data_spec;        // Ö¸¶¨¾ØÕó´òÓ¡UARTÊı¾İ (Î¨Ò»µÄUARTÊä³öÔ´)
 	
-	// Displayæ¨¡å¼çŠ¶æ€ä¿¡å·
-	wire display_error;                  // æ˜¾ç¤ºæ¨¡å¼é”™è¯¯
-	wire display_done;                   // æ˜¾ç¤ºæ¨¡å¼å®Œæˆ
-	wire [1:0] selected_matrix_id;       // é€‰ä¸­çš„çŸ©é˜µID
+	// DisplayÄ£Ê½×´Ì¬ĞÅºÅ
+	wire display_error;                  // ÏÔÊ¾Ä£Ê½´íÎó
+	wire display_done;                   // ÏÔÊ¾Ä£Ê½Íê³É
+	wire [1:0] selected_matrix_id;       // Ñ¡ÖĞµÄ¾ØÕóID
 
-	// Matrix Selector Display çŸ©é˜µé€‰æ‹©æ˜¾ç¤ºæ§åˆ¶å™¨
-	// æ•°æ®æµ: uart_rx -> matrix_selector_display -> (print_table æˆ– print_specified_dim_matrix)
+	// Matrix Selector Display ¾ØÕóÑ¡ÔñÏÔÊ¾¿ØÖÆÆ÷
+	// Êı¾İÁ÷: uart_rx -> matrix_selector_display -> (print_table »ò print_specified_dim_matrix)
 	matrix_selector_display u_matrix_selector_display (
 		.clk(clk),
 		.rst_n(rst_n),
-		.start(display_mode_en),              // è¾“å…¥: æ˜¾ç¤ºæ¨¡å¼ä½¿èƒ½
+		.start(display_mode_en),              // ÊäÈë: ÏÔÊ¾Ä£Ê½Ê¹ÄÜ
 		
-		// ä¸print_tableæ¨¡å—çš„è¿æ¥
-		.print_table_start(print_table_start), // è¾“å‡º: å¯åŠ¨æ‰“å°è¡¨æ ¼
-		.print_table_busy(print_busy_table),   // è¾“å…¥: è¡¨æ ¼æ‰“å°å¿™
-		.print_table_done(print_done_table),   // è¾“å…¥: è¡¨æ ¼æ‰“å°å®Œæˆ
+		// Óëprint_tableÄ£¿éµÄÁ¬½Ó
+		.print_table_start(print_table_start), // Êä³ö: Æô¶¯´òÓ¡±í¸ñ
+		.print_table_busy(print_busy_table),   // ÊäÈë: ±í¸ñ´òÓ¡Ã¦
+		.print_table_done(print_done_table),   // ÊäÈë: ±í¸ñ´òÓ¡Íê³É
 		
-		// UARTè¾“å…¥ - æ¥æ”¶ç”¨æˆ·è¾“å…¥çš„ç»´åº¦
-		.uart_input_data(uart_rx_data),        // è¾“å…¥: UARTæ¥æ”¶æ•°æ®
-		.uart_input_valid(uart_rx_done),       // è¾“å…¥: UARTæ¥æ”¶æœ‰æ•ˆ
+		// UARTÊäÈë - ½ÓÊÕÓÃ»§ÊäÈëµÄÎ¬¶È
+		.uart_input_data(uart_rx_data),        // ÊäÈë: UART½ÓÊÕÊı¾İ
+		.uart_input_valid(uart_rx_done),       // ÊäÈë: UART½ÓÊÕÓĞĞ§
 		
-		// ä¸print_specified_dim_matrixæ¨¡å—çš„è¿æ¥
-		.print_spec_start(print_spec_start),   // è¾“å‡º: å¯åŠ¨æ‰“å°æŒ‡å®šçŸ©é˜µ
-		.spec_dim_m(spec_dim_m),               // è¾“å‡º: ç›®æ ‡çŸ©é˜µè¡Œæ•°
-		.spec_dim_n(spec_dim_n),               // è¾“å‡º: ç›®æ ‡çŸ©é˜µåˆ—æ•°
-		.print_spec_busy(print_spec_busy),     // è¾“å…¥: æŒ‡å®šæ‰“å°å¿™
-		.print_spec_done(print_spec_done),     // è¾“å…¥: æŒ‡å®šæ‰“å°å®Œæˆ
-		.print_spec_error(print_spec_error),   // è¾“å…¥: æŒ‡å®šæ‰“å°é”™è¯¯
+		// Óëprint_specified_dim_matrixÄ£¿éµÄÁ¬½Ó
+		.print_spec_start(print_spec_start),   // Êä³ö: Æô¶¯´òÓ¡Ö¸¶¨¾ØÕó
+		.spec_dim_m(spec_dim_m),               // Êä³ö: Ä¿±ê¾ØÕóĞĞÊı
+		.spec_dim_n(spec_dim_n),               // Êä³ö: Ä¿±ê¾ØÕóÁĞÊı
+		.print_spec_busy(print_spec_busy),     // ÊäÈë: Ö¸¶¨´òÓ¡Ã¦
+		.print_spec_done(print_spec_done),     // ÊäÈë: Ö¸¶¨´òÓ¡Íê³É
+		.print_spec_error(print_spec_error),   // ÊäÈë: Ö¸¶¨´òÓ¡´íÎó
 		
-		// çŠ¶æ€è¾“å‡º (matrix_selector_displayä¸ç›´æ¥è¿æ¥storageå’Œprinter)
-		// è¿™äº›ä¿¡å·é€šè¿‡print_specified_dim_matrixæ¨¡å—ä¼ é€’
-		.read_en(),                            // æœªä½¿ç”¨
-		.rd_col(),                             // æœªä½¿ç”¨
-		.rd_row(),                             // æœªä½¿ç”¨
-		.rd_mat_index(),                       // æœªä½¿ç”¨
-		.rd_data_flow(200'd0),                 // æœªä½¿ç”¨
-		.rd_ready(1'b0),                       // æœªä½¿ç”¨
+		// ×´Ì¬Êä³ö (matrix_selector_display²»Ö±½ÓÁ¬½ÓstorageºÍprinter)
+		// ÕâĞ©ĞÅºÅÍ¨¹ıprint_specified_dim_matrixÄ£¿é´«µİ
+		.read_en(),                            // Î´Ê¹ÓÃ
+		.rd_col(),                             // Î´Ê¹ÓÃ
+		.rd_row(),                             // Î´Ê¹ÓÃ
+		.rd_mat_index(),                       // Î´Ê¹ÓÃ
+		.rd_data_flow(200'd0),                 // Î´Ê¹ÓÃ
+		.rd_ready(1'b0),                       // Î´Ê¹ÓÃ
 		
-		.matrix_print_start(),                 // æœªä½¿ç”¨
-		.matrix_flat(),                        // æœªä½¿ç”¨
-		.matrix_print_busy(1'b0),              // æœªä½¿ç”¨
-		.matrix_print_done(1'b0),              // æœªä½¿ç”¨
+		.matrix_print_start(),                 // Î´Ê¹ÓÃ
+		.matrix_flat(),                        // Î´Ê¹ÓÃ
+		.matrix_print_busy(1'b0),              // Î´Ê¹ÓÃ
+		.matrix_print_done(1'b0),              // Î´Ê¹ÓÃ
 		
-		// çŠ¶æ€è¾“å‡º
-		.error(display_error),                   // è¾“å‡º: é”™è¯¯çŠ¶æ€
-		.done(display_done),                     // è¾“å‡º: å®ŒæˆçŠ¶æ€
-		.selected_matrix_id(selected_matrix_id)  // è¾“å‡º: é€‰ä¸­çš„çŸ©é˜µID
+		// ×´Ì¬Êä³ö
+		.error(display_error),                   // Êä³ö: ´íÎó×´Ì¬
+		.done(display_done),                     // Êä³ö: Íê³É×´Ì¬
+		.selected_matrix_id(selected_matrix_id)  // Êä³ö: Ñ¡ÖĞµÄ¾ØÕóID
 	);
 
-	// Print Specified Dimension Matrix æ‰“å°æŒ‡å®šç»´åº¦çŸ©é˜µæ¨¡å—
-	// æ•°æ®æµ: spec_dim -> info_tableæŸ¥è¯¢ -> matrix_storageè¯»å– -> matrix_printeræ‰“å°
+	// Print Specified Dimension Matrix ´òÓ¡Ö¸¶¨Î¬¶È¾ØÕóÄ£¿é
+	// Êı¾İÁ÷: spec_dim -> info_table²éÑ¯ -> matrix_storage¶ÁÈ¡ -> ×¼±¸Êı¾İ¸ømatrix_printer´òÓ¡
+	// ×¢Òâ: ´ËÄ£¿é²»Ö±½ÓÊä³öUART£¬¶øÊÇÍ¨¹ımatrix_printerÊä³ö
 	print_specified_dim_matrix u_print_specified_dim_matrix (
 		.clk(clk),
 		.rst_n(rst_n),
-		.start(print_spec_start),             // è¾“å…¥: å¯åŠ¨æ‰“å°
-		.busy(print_spec_busy),               // è¾“å‡º: æ¨¡å—å¿™çŠ¶æ€
-		.done(print_spec_done),               // è¾“å‡º: æ‰“å°å®Œæˆ
-		.error(print_spec_error),             // è¾“å‡º: é”™è¯¯ (æœªæ‰¾åˆ°åŒ¹é…çŸ©é˜µ)
+		.start(print_spec_start),             // ÊäÈë: Æô¶¯´òÓ¡
+		.busy(print_spec_busy),               // Êä³ö: Ä£¿éÃ¦×´Ì¬
+		.done(print_spec_done),               // Êä³ö: ´òÓ¡Íê³É
+		.error(print_spec_error),             // Êä³ö: ´íÎó (Î´ÕÒµ½Æ¥Åä¾ØÕó)
 		
-		// è¾“å…¥çš„ç›®æ ‡ç»´åº¦
-		.dim_m(spec_dim_m),                   // è¾“å…¥: ç›®æ ‡çŸ©é˜µè¡Œæ•°
-		.dim_n(spec_dim_n),                   // è¾“å…¥: ç›®æ ‡çŸ©é˜µåˆ—æ•°
+		// ÊäÈëµÄÄ¿±êÎ¬¶È
+		.dim_m(spec_dim_m),                   // ÊäÈë: Ä¿±ê¾ØÕóĞĞÊı
+		.dim_n(spec_dim_n),                   // ÊäÈë: Ä¿±ê¾ØÕóÁĞÊı
 		
-		// è¿æ¥åˆ°matrix_storage
-		.info_table(info_table),              // è¾“å…¥: çŸ©é˜µä¿¡æ¯è¡¨ (ç”¨äºæŸ¥è¯¢)
-		.read_en(store_read_en),              // è¾“å‡º: è¯»ä½¿èƒ½
-		.dimM(store_rd_col),                  // è¾“å‡º: è¯»å–çš„çŸ©é˜µåˆ—æ•°
-		.dimN(store_rd_row),                  // è¾“å‡º: è¯»å–çš„çŸ©é˜µè¡Œæ•°
-		.mat_index(store_rd_mat_index),       // è¾“å‡º: è¯»å–çš„çŸ©é˜µç´¢å¼•
-		.rd_ready(store_rd_ready),            // è¾“å…¥: è¯»å–å°±ç»ª
-		.rd_data_flow(store_rd_data_flow),    // è¾“å…¥: è¯»å–çš„çŸ©é˜µæ•°æ®
+		// Á¬½Óµ½matrix_storage
+		.info_table(info_table),              // ÊäÈë: ¾ØÕóĞÅÏ¢±í (ÓÃÓÚ²éÑ¯)
+		.read_en(store_read_en),              // Êä³ö: ¶ÁÊ¹ÄÜ
+		.dimM(store_rd_col),                  // Êä³ö: ¶ÁÈ¡µÄ¾ØÕóÁĞÊı
+		.dimN(store_rd_row),                  // Êä³ö: ¶ÁÈ¡µÄ¾ØÕóĞĞÊı
+		.mat_index(store_rd_mat_index),       // Êä³ö: ¶ÁÈ¡µÄ¾ØÕóË÷Òı
+		.rd_ready(store_rd_ready),            // ÊäÈë: ¶ÁÈ¡¾ÍĞ÷
+		.rd_data_flow(store_rd_data_flow),    // ÊäÈë: ¶ÁÈ¡µÄ¾ØÕóÊı¾İ
 		
-		// è¿æ¥åˆ°matrix_printer
-		.matrix_printer_start(matrix_print_start), // è¾“å‡º: å¯åŠ¨çŸ©é˜µæ‰“å°
-		.matrix_printer_done(matrix_print_done),   // è¾“å…¥: çŸ©é˜µæ‰“å°å®Œæˆ
-		.matrix_flat(matrix_flat),                 // è¾“å‡º: çŸ©é˜µæ•°æ®
-		.use_crlf(1'b1),                           // ä½¿ç”¨å›è½¦æ¢è¡Œ
+		// Á¬½Óµ½matrix_printer (Í¨¹ıÕâĞ©ĞÅºÅ´«µİÊı¾İ)
+		.matrix_printer_start(matrix_print_start), // Êä³ö: Æô¶¯¾ØÕó´òÓ¡
+		.matrix_printer_done(matrix_print_done),   // ÊäÈë: ¾ØÕó´òÓ¡Íê³É
+		.matrix_flat(matrix_flat),                 // Êä³ö: ¾ØÕóÊı¾İ´«µİ¸øprinter
+		.use_crlf(1'b1)                            // Ê¹ÓÃ»Ø³µ»»ĞĞ
 		
-		// UARTè¾“å‡º
-		.uart_tx_busy(uart_tx_busy),          // è¾“å…¥: UARTå¿™çŠ¶æ€
-		.uart_tx_en(uart_tx_en_spec),         // è¾“å‡º: UARTå‘é€ä½¿èƒ½
-		.uart_tx_data(uart_tx_data_spec)      // è¾“å‡º: UARTå‘é€æ•°æ®
+		// ÒÆ³ıUARTÊä³ö¶Ë¿Ú - ·ÀÖ¹¶àÇı¶¯³åÍ»
+		// UARTÊä³öÓÉmatrix_printer (u_print_for_display) ¸ºÔğ
+		// .uart_tx_busy(), .uart_tx_en(), .uart_tx_data() ÒÑÒÆ³ı
 	);
 
-	// Matrix Printer for Display æ˜¾ç¤ºæ¨¡å¼çš„çŸ©é˜µæ‰“å°å™¨
-	// æ•°æ®æµ: matrix_flat -> matrix_printer -> UART TX
-	// æ³¨æ„: matrix_dim_m/n éœ€è¦ä»matrix_flatä¸­è·å–æˆ–ä»spec_dimä¼ é€’
+	// Matrix Printer for Display ÏÔÊ¾Ä£Ê½µÄ¾ØÕó´òÓ¡Æ÷
+	// Êı¾İÁ÷: print_specified_dim_matrix -> matrix_flat -> matrix_printer -> UART TX
+	// ÕâÊÇDisplayÄ£Ê½ÏÂUARTÊı¾İµÄÎ¨Ò»Êä³öÔ´
 	matrix_printer u_print_for_display (
 		.clk(clk),
 		.rst_n(rst_n),
-		.start(matrix_print_start),       // è¾“å…¥: å¯åŠ¨æ‰“å°
-		.matrix_flat(matrix_flat),        // è¾“å…¥: çŸ©é˜µæ•°æ®
-		.dimM(spec_dim_m),                // è¾“å…¥: çŸ©é˜µè¡Œæ•° (ä½¿ç”¨ç”¨æˆ·è¾“å…¥çš„ç»´åº¦)
-		.dimN(spec_dim_n),                // è¾“å…¥: çŸ©é˜µåˆ—æ•°
-		.use_crlf(1'b1),                  // ä½¿ç”¨å›è½¦æ¢è¡Œ
-		.tx_start(uart_tx_en_spec),       // è¾“å‡º: UARTå‘é€ä½¿èƒ½
-		.tx_data(uart_tx_data_spec),      // è¾“å‡º: UARTå‘é€æ•°æ®
-		.tx_busy(uart_tx_busy),           // è¾“å…¥: UARTå¿™çŠ¶æ€
-		.done(matrix_print_done)          // è¾“å‡º: æ‰“å°å®Œæˆ
+		.start(matrix_print_start),       // ÊäÈë: À´×Ôprint_specified_dim_matrixµÄÆô¶¯ĞÅºÅ
+		.matrix_flat(matrix_flat),        // ÊäÈë: À´×Ôprint_specified_dim_matrixµÄ¾ØÕóÊı¾İ
+		.dimM(spec_dim_m),                // ÊäÈë: ¾ØÕóĞĞÊı (Ê¹ÓÃÓÃ»§ÊäÈëµÄÎ¬¶È)
+		.dimN(spec_dim_n),                // ÊäÈë: ¾ØÕóÁĞÊı (Ê¹ÓÃÓÃ»§ÊäÈëµÄÎ¬¶È)
+		.use_crlf(1'b1),                  // Ê¹ÓÃ»Ø³µ»»ĞĞ
+		.tx_start(uart_tx_en_spec),       // Êä³ö: UART·¢ËÍÊ¹ÄÜ (Î¨Ò»Çı¶¯Ô´)
+		.tx_data(uart_tx_data_spec),      // Êä³ö: UART·¢ËÍÊı¾İ (Î¨Ò»Çı¶¯Ô´)
+		.tx_busy(uart_tx_busy),           // ÊäÈë: UARTÃ¦×´Ì¬
+		.done(matrix_print_done)          // Êä³ö: ´òÓ¡Íê³É£¬·´À¡¸øprint_specified_dim_matrix
 	);
 
-	// Displayæ¨¡å¼UARTè¾“å‡ºå¤šè·¯å¤ç”¨
-	// æ ¹æ®å½“å‰æ˜¯æ‰“å°è¡¨æ ¼è¿˜æ˜¯æ‰“å°çŸ©é˜µé€‰æ‹©è¾“å‡ºæº
+	// DisplayÄ£Ê½UARTÊä³ö¶àÂ·¸´ÓÃ
+	// ¸ù¾İµ±Ç°ÊÇ´òÓ¡±í¸ñ»¹ÊÇ´òÓ¡¾ØÕóÑ¡ÔñÊä³öÔ´
 	assign uart_tx_en_display = print_busy_table ? uart_tx_en_table : uart_tx_en_spec;
 	assign uart_tx_data_display = print_busy_table ? uart_tx_data_table : uart_tx_data_spec;
 
