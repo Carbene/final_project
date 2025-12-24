@@ -368,9 +368,9 @@ module sys_top(
 	print_table u_print_table (
 	.clk(clk),
 	.rst_n(rst_n),
-	.start(display_mode_en),
+	.start(print_table_start),
 	.uart_tx_busy(uart_tx_busy),
-	.uart_tx_en(uart_tx_en_start),
+	.uart_tx_en(uart_tx_en_table),
 	.uart_tx_data(uart_tx_data_table),
 	.info_table(info_table),
 	.cnt(total_count),

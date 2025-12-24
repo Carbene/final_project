@@ -25,12 +25,9 @@ module print_table(
                S_FETCH       = 4'd1, // 提取 2-bit 数据
                S_CHECK       = 4'd2, // 检查是否为 0
                S_SET_DATA    = 4'd3, // 准备 ASCII
-               S_SEND_TRIG   = 4'd4, 
-               S_WAIT_BUSY   = 4'd5, // 等待握手开始
-               S_WAIT_DONE   = 4'd6, // 等待发送完成
-               S_COOL_DOWN   = 4'd7, 
-               S_NEXT_STEP   = 4'd8, // 步进控制核心
-               S_DONE        = 4'd9;
+               S_SEND        = 4'd4, // 发送状态，类似 matrix_printer 的 SEND
+               S_NEXT_STEP   = 4'd5, // 步进控制核心
+               S_DONE        = 4'd6;
 
     reg [3:0] state, next_state;
     reg [3:0] step_cnt; 
@@ -38,10 +35,9 @@ module print_table(
     reg [2:0] row, col; 
     reg [7:0] t_tens, t_ones;
     reg [1:0] cur_cell_val;
-    reg [19:0] cool_cnt;
-    reg header_done;
-
-    localparam COOL_TIME = 20'd100_000; 
+    reg wait_tx_done; // 等待 uart_tx 完成当前字节
+    reg send_done;    // 当前字符发送完成
+    reg header_done; 
 
     // 计算当前 2-bit 在 info_table 中的位置
     wire [5:0] bit_pos = cell_idx << 1;
@@ -62,14 +58,11 @@ module print_table(
                 if (cur_cell_val == 2'd0) next_state = S_NEXT_STEP; // 关键：为0直接跳过发送
                 else                      next_state = S_SET_DATA;
             end
-            S_SET_DATA:   next_state = S_SEND_TRIG;
-            S_SEND_TRIG:  next_state = S_WAIT_BUSY;
-            S_WAIT_BUSY:  if (uart_tx_busy)  next_state = S_WAIT_DONE;
-            S_WAIT_DONE:  if (!uart_tx_busy) next_state = S_COOL_DOWN;
-            S_COOL_DOWN:  if (cool_cnt >= COOL_TIME) next_state = S_NEXT_STEP;
+            S_SET_DATA:   next_state = S_SEND;
+            S_SEND:       next_state = send_done ? S_NEXT_STEP : S_SEND;
             S_NEXT_STEP: begin
-                // 如果当前单元格 11 个字符还没发完，回 SET_DATA
-                if (cur_cell_val != 2'd0 && step_cnt < 4'd10) next_state = S_SET_DATA;
+                // 如果当前单元格需要发送且字符没发完，回 SET_DATA
+                if (cur_cell_val != 2'd0 && step_cnt < 4'd8) next_state = S_SET_DATA;
                 // 如果 25 个单元格全跑完了，去 DONE
                 else if (cell_idx >= 5'd24) next_state = S_DONE;
                 // 否则，取下一个单元格数据
@@ -84,14 +77,14 @@ module print_table(
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             uart_tx_en <= 0; uart_tx_data <= 0; busy <= 0; done <= 0;
-            step_cnt <= 0; cell_idx <= 0; row <= 1; col <= 1; cool_cnt <= 0;
-            header_done <= 0;
+            step_cnt <= 0; cell_idx <= 0; row <= 1; col <= 1;
+            wait_tx_done <= 1'b0; send_done <= 1'b0; header_done <= 0;
         end else begin
             case (state)
                 S_IDLE: begin
                     busy <= 0; done <= 0; step_cnt <= 0; cell_idx <= 0;
-                    row <= 1; col <= 1; cool_cnt <= 0; uart_tx_en <= 0;
-                    header_done <= 0;
+                    row <= 1; col <= 1; wait_tx_done <= 1'b0; send_done <= 1'b0;
+                    uart_tx_en <= 0; header_done <= 0;
                 end
 
                 S_FETCH: begin
@@ -104,6 +97,7 @@ module print_table(
                 end
 
                 S_SET_DATA: begin
+                    send_done <= 1'b0; // 重置发送完成标志
                     case (step_cnt)
                         4'd0:  uart_tx_data <= ASCII_0 + t_tens;
                         4'd1:  uart_tx_data <= ASCII_0 + t_ones;
@@ -113,18 +107,27 @@ module print_table(
                         4'd5:  uart_tx_data <= ASCII_0 + col;
                         4'd6:  uart_tx_data <= ASCII_STAR;
                         4'd7:  uart_tx_data <= ASCII_0 + cur_cell_val;
-                        4'd8:  uart_tx_data <= ASCII_SPACE;
                         default: uart_tx_data <= ASCII_SPACE;
                     endcase
                 end
 
-                S_SEND_TRIG: uart_tx_en <= 1'b1;
-                S_WAIT_BUSY, S_WAIT_DONE: uart_tx_en <= 1'b0;
-
-                S_COOL_DOWN: cool_cnt <= cool_cnt + 1'b1;
+                S_SEND: begin
+                    if (!wait_tx_done && !uart_tx_busy && !send_done) begin
+                        // 发送当前字节
+                        uart_tx_en   <= 1'b1;
+                        wait_tx_done <= 1'b1;
+                    end else if (wait_tx_done && uart_tx_busy) begin
+                        // uart_tx 已响应，清除 start
+                        uart_tx_en <= 1'b0;
+                    end else if (wait_tx_done && !uart_tx_busy && uart_tx_en == 1'b0) begin
+                        // uart_tx 完成发送（tx_busy 回落），准备下一个
+                        wait_tx_done <= 1'b0;
+                        send_done    <= 1'b1;
+                    end
+                end
 
                 S_NEXT_STEP: begin
-                    cool_cnt <= 0;
+                    send_done <= 1'b0; // 重置
                     // 如果当前单元格需要发送且字符没发完，步进 step_cnt
                     if (cur_cell_val != 2'd0 && step_cnt < 4'd8) begin
                         step_cnt <= step_cnt + 1'b1;
