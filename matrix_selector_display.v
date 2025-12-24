@@ -73,6 +73,7 @@ module matrix_selector_display #(
     reg [2:0] dim_m_buffer, dim_n_buffer;
     reg [1:0] matrix_id_buffer;
     reg dim_m_valid, dim_n_valid, matrix_id_valid;  // 标记是否已采集到一位有效数字
+    reg read_req_sent;  // 标记是否已发送读请求
 
     wire is_space = (uart_input_data == 8'h20);
     wire is_cr    = (uart_input_data == 8'h0D);
@@ -209,6 +210,7 @@ module matrix_selector_display #(
             dim_m_valid <= 1'b0;
             dim_n_valid <= 1'b0;
             matrix_id_valid <= 1'b0;
+            read_req_sent <= 1'b0;
         end else begin
             // 默认清除脉冲信号
             print_table_start <= 1'b0;
@@ -264,15 +266,20 @@ module matrix_selector_display #(
                         // 接收一位有效数字（1..MAX_MATRIX_ID），内部转为 0-based
                         matrix_id_buffer <= uart_input_data - 8'h31;
                         matrix_id_valid <= 1'b1;
+                        read_req_sent <= 1'b0;  // 准备发送新的读请求
                     end
                 end
                 
                 LOAD_MATRIX_REQ: begin
-                    read_en <= 1'b1;
-                    rd_col <= dim_m_buffer;
-                    rd_row <= dim_n_buffer;
-                    rd_mat_index <= matrix_id_buffer;
-                    // 在检测到 rd_ready 的同周期锁存数据并启动打印
+                    // 只在第一个周期发送 read_en 脉冲
+                    if (!read_req_sent) begin
+                        read_en <= 1'b1;
+                        rd_col <= dim_m_buffer;
+                        rd_row <= dim_n_buffer;
+                        rd_mat_index <= matrix_id_buffer;
+                        read_req_sent <= 1'b1;
+                    end
+                    // 在检测到 rd_ready 的同周期锁存数据
                     if (rd_ready) begin
                         matrix_flat <= rd_data_flow;
                     end

@@ -265,10 +265,26 @@ module sys_top(
 	// ���ڴ洢���������ɵľ�������
 	wire [49:0] info_table;        // ������Ϣ�� (ÿ������5�ֽ�:�С��С�ID��)
 	wire [7:0] total_count;        // �Ѵ洢��������
-	wire store_read_en;            // ��ʹ�� (���ӵ�displayģ��)
-	wire [2:0] store_rd_col;       // ��ȡ�ľ�������
-	wire [2:0] store_rd_row;       // ��ȡ�ľ�������
-	wire [1:0] store_rd_mat_index; // ��ȡ�ľ�������
+	
+	// --- 存储读取仲裁: print_specified_dim_matrix 和 matrix_selector_display 共享 ---
+	// print_specified_dim_matrix 的读取信号
+	wire spec_read_en;
+	wire [2:0] spec_rd_col;
+	wire [2:0] spec_rd_row;
+	wire [1:0] spec_rd_mat_index;
+	
+	// matrix_selector_display 的读取信号 (前向声明)
+	wire selector_read_en;
+	wire [2:0] selector_rd_col;
+	wire [2:0] selector_rd_row;
+	wire [1:0] selector_rd_mat_index;
+	
+	// 仲裁后的存储读取信号 (selector 优先，因为它在 spec 完成后才工作)
+	wire store_read_en = selector_read_en | spec_read_en;
+	wire [2:0] store_rd_col = selector_read_en ? selector_rd_col : spec_rd_col;
+	wire [2:0] store_rd_row = selector_read_en ? selector_rd_row : spec_rd_row;
+	wire [1:0] store_rd_mat_index = selector_read_en ? selector_rd_mat_index : spec_rd_mat_index;
+	
 	wire [199:0] store_rd_data_flow; // ��ȡ�ľ���������
 	wire store_rd_ready;           // ��ȡ׼���ź�
 	wire store_err_rd;             // ��ȡ�����ź�
@@ -354,7 +370,7 @@ module sys_top(
 			uart_tx_en = uart_tx_en_gen;
 			uart_tx_data = uart_tx_data_gen;
 		end else if (display_mode_en) begin
-			// 显示模式 - 优先表格 -> 计数头 -> 矩阵正文
+			// 显示模式 - 优先表格 -> 计数头 -> 矩阵正文 -> 用户选择的矩阵
 			if (print_busy_table || print_table_start) begin
 				uart_tx_en   = uart_tx_en_table;
 				uart_tx_data = uart_tx_data_table;
@@ -362,9 +378,14 @@ module sys_top(
 				// 计数头（三字节）优先于矩阵正文
 				uart_tx_en   = uart_tx_en_spec_cnt;
 				uart_tx_data = uart_tx_data_spec_cnt;
-			end else begin
+			end else if (uart_tx_en_spec_mat) begin
+				// spec模块的矩阵打印
 				uart_tx_en   = uart_tx_en_spec_mat;
 				uart_tx_data = uart_tx_data_spec_mat;
+			end else begin
+				// 用户选择矩阵的打印 (selector)
+				uart_tx_en   = uart_tx_en_selector;
+				uart_tx_data = uart_tx_data_selector;
 			end
 		end else begin
 			uart_tx_en = 1'b0;
@@ -454,6 +475,14 @@ module sys_top(
 	wire display_done;                   // ��ʾģʽ���
 	wire [1:0] selected_matrix_id;       // ѡ�еľ���ID
 
+	// --- matrix_selector_display 的矩阵打印接口 ---
+	wire selector_print_start;
+	wire [199:0] selector_matrix_flat;
+	wire selector_print_busy;
+	wire selector_print_done;
+	wire uart_tx_en_selector;
+	wire [7:0] uart_tx_data_selector;
+
 	// Matrix Selector Display ����ѡ����ʾ������
 	// ������: uart_rx -> matrix_selector_display -> (print_table �� print_specified_dim_matrix)
 	matrix_selector_display u_matrix_selector_display (
@@ -478,19 +507,19 @@ module sys_top(
 		.print_spec_done(print_spec_done),     // ����: ָ����ӡ���
 		.print_spec_error(print_spec_error),   // ����: ָ����ӡ����
 		
-		// ״̬��� (matrix_selector_display��ֱ������storage��printer)
-		// ��Щ�ź�ͨ��print_specified_dim_matrixģ�鴫��
-		.read_en(),                            // δʹ��
-		.rd_col(),                             // δʹ��
-		.rd_row(),                             // δʹ��
-		.rd_mat_index(),                       // δʹ��
-		.rd_data_flow(200'd0),                 // δʹ��
-		.rd_ready(1'b0),                       // δʹ��
+		// 与 matrix_storage 通信：读取用户选择的矩阵
+		.read_en(selector_read_en),
+		.rd_col(selector_rd_col),
+		.rd_row(selector_rd_row),
+		.rd_mat_index(selector_rd_mat_index),
+		.rd_data_flow(store_rd_data_flow),
+		.rd_ready(store_rd_ready),
 		
-		.matrix_print_start(),                 // δʹ��
-		.matrix_flat(),                        // δʹ��
-		.matrix_print_busy(1'b0),              // δʹ��
-		.matrix_print_done(1'b0),              // δʹ��
+		// 与 matrix_printer 通信：打印选中的矩阵
+		.matrix_print_start(selector_print_start),
+		.matrix_flat(selector_matrix_flat),
+		.matrix_print_busy(selector_print_busy),
+		.matrix_print_done(selector_print_done),
 		
 		// ״̬���
 		.error(display_error),                   // ���: ����״̬
@@ -514,10 +543,10 @@ module sys_top(
 		
 		// ���ӵ�matrix_storage
 		.info_table(info_table),              // ����: ������Ϣ�� (���ڲ�ѯ)
-		.read_en(store_read_en),              // ���: ��ʹ��
-		.dimM(store_rd_col),                  // ���: ��ȡ�ľ�������
-		.dimN(store_rd_row),                  // ���: ��ȡ�ľ�������
-		.mat_index(store_rd_mat_index),       // ���: ��ȡ�ľ�������
+		.read_en(spec_read_en),               // ���: ��ʹ��
+		.dimM(spec_rd_col),                   // ���: �ȡľ��������
+		.dimN(spec_rd_row),                   // ���: �ȡľ��������
+		.mat_index(spec_rd_mat_index),        // ���: �ȡľ��������
 		.rd_ready(store_rd_ready),            // ����: ��ȡ����
 		.rd_data_flow(store_rd_data_flow),    // ����: ��ȡ�ľ�������
 		
@@ -548,7 +577,23 @@ module sys_top(
 		.tx_busy(uart_tx_busy),           // ����: UARTæ״̬
 		.done(matrix_print_done)          // ���: ��ӡ��ɣ�������print_specified_dim_matrix
 	);
-
+	// --- Matrix Printer for Selector: matrix_selector_display 用户选择矩阵打印 ---
+	matrix_printer u_print_for_selector (
+		.clk(clk),
+		.rst_n(rst_n),
+		.start(selector_print_start),
+		.matrix_flat(selector_matrix_flat),
+		.dimM(spec_dim_m),                // 使用用户输入的维度
+		.dimN(spec_dim_n),
+		.use_crlf(1'b1),
+		.tx_start(uart_tx_en_selector),
+		.tx_data(uart_tx_data_selector),
+		.tx_busy(uart_tx_busy),
+		.done(selector_print_done)
+	);
+	
+	// selector_print_busy 根据打印器状态生成
+	assign selector_print_busy = selector_print_start | (~selector_print_done & (selector_print_start | uart_tx_en_selector));
 	// Display模式 UART 选择信号（不再使用二选一固定选择）
 	// 由上方 always 块统一选择输出到 uart_tx
 

@@ -89,9 +89,11 @@ module print_specified_dim_matrix(
             S_CHECK:       if (table_cnt == 2'd0)               next_state = S_ERROR;
                            else                                 next_state = S_PREP_TXCNT;
             S_PREP_TXCNT:                                         next_state = S_TXCNT;
-            S_TXCNT:       if (tx_idx == tx_len)                next_state = S_PREP_INDEX;
+            S_TXCNT:       if (tx_idx == tx_len && !tx_in_progress && !uart_tx_busy) 
+                                                                next_state = S_PREP_INDEX;
             S_PREP_INDEX:                                         next_state = S_TX_INDEX;
-            S_TX_INDEX:    if (tx_idx == tx_len)                next_state = S_PREP_READ;
+            S_TX_INDEX:    if (tx_idx == tx_len && !tx_in_progress && !uart_tx_busy) 
+                                                                next_state = S_PREP_READ;
             S_PREP_READ:                                          next_state = S_READ_PULSE;
             S_READ_PULSE:                                         next_state = S_READ_WAIT;
             S_READ_WAIT:   if (rd_ready)                        next_state = S_START_PRINT;
