@@ -1,184 +1,158 @@
 module print_table(
-    input wire clk,
+    input wire clk,           // ÇëÈ·ÈÏÊ±ÖÓÆµÂÊ£¬Ä¬ÈÏ°´ 100MHz ±àĞ´
     input wire rst_n,
-    input wire start,         // è¯·ç¡®ä¿å¤–éƒ¨å·²å¤„ç†ä¸ºå•è„‰å†²ä¿¡å·
-    // UART TX æ¥å£
+    input wire start,         // Íâ²¿´¥·¢Âö³å
+    // UART TX ½Ó¿Ú
     input wire uart_tx_busy,
     output reg uart_tx_en,
     output reg [7:0] uart_tx_data,
-    // æ•°æ®è¾“å…¥
+    // Êı¾İÊäÈë
     input wire [49:0] info_table,
-    input wire [7:0] cnt,     // å¤–éƒ¨è¾“å…¥çš„ total_cnt
-    // çŠ¶æ€æŒ‡ç¤º
+    input wire [7:0] cnt,     
     output reg busy,
-    output reg done
+    output reg done,
+    output reg [3:0] current_state
 );
 
-    // --- ASCII å¸¸é‡å®šä¹‰ ---
-    localparam [7:0] ASCII_STAR  = 8'h2A; // '*'
-    localparam [7:0] ASCII_SPACE = 8'h20; // ' '
-    localparam [7:0] ASCII_0     = 8'h30;
-    localparam [7:0] ASCII_CR    = 8'h0D; // '\r'
-    localparam [7:0] ASCII_LF    = 8'h0A; // '\n'
+    // --- ASCII ³£Á¿ ---
+    localparam [7:0] ASCII_STAR  = 8'h2A, ASCII_SPACE = 8'h20,
+                     ASCII_0     = 8'h30, ASCII_CR    = 8'h0D, ASCII_LF = 8'h0A;
 
-    // --- çŠ¶æ€æœºå®šä¹‰ ---
+    // --- ×´Ì¬»ú¶¨Òå ---
     localparam S_IDLE        = 4'd0,
                S_PREPARE     = 4'd1,
-               S_SET_DATA    = 4'd2, // æ ¸å¿ƒï¼šæ ¹æ®å½“å‰æ­¥éª¤å‡†å¤‡å¯¹åº”çš„ ASCII æ•°æ®
-               S_SEND_TRIG   = 4'd3, // æ ¸å¿ƒï¼šäº§ç”Ÿä¸€ä¸ªå‘¨æœŸçš„ä½¿èƒ½è„‰å†²
-               S_WAIT_ACK    = 4'd4, // ç­‰å¾…ä¸²å£æ¨¡å—å“åº” (busy å˜é«˜)
-               S_WAIT_DONE   = 4'd5, // ç­‰å¾…ä¸²å£æ¨¡å—å‘é€å®Œæˆ (busy å˜ä½)
-               S_CHECK_NEXT  = 4'd6, // åˆ¤æ–­æ˜¯å‘ä¸‹ä¸€ä¸ªå­—ç¬¦è¿˜æ˜¯ç»“æŸ
+               S_SET_DATA    = 4'd2,
+               S_SEND_TRIG   = 4'd3,
+               S_WAIT_START  = 4'd4, // µÈ´ı busy À­¸ß
+               S_WAIT_DONE   = 4'd5, // µÈ´ı busy À­µÍ
+               S_COOL_DOWN   = 4'd6, // Ç¿ÖÆÀäÈ´£¬·ÀÖ¹Êı¾İÁ¬Åçµ¼ÖÂÂÒÂë
                S_DONE        = 4'd7;
 
     reg [3:0] state, next_state;
-
-    // --- æ§åˆ¶å¯„å­˜å™¨ ---
-    reg [5:0] step_cnt; // è®°å½•å½“å‰è¿™ä¸€è¡Œå‘åˆ°ç¬¬å‡ ä¸ªå­—ç¬¦ (0-7)
-    reg [4:0] cell_idx; // è®°å½•å½“å‰å‘é€çš„æ˜¯ 25 ä¸ªå•å…ƒä¸­çš„ç¬¬å‡ ä¸ª (0-24)
-    reg [2:0] row, col; // çŸ©é˜µè¡Œåˆ—åæ ‡
+    reg [5:0] step_cnt; 
+    reg [4:0] cell_idx; 
+    reg [2:0] row, col; 
     reg [7:0] t_tens, t_ones;
     reg [1:0] cur_cell_val;
+    reg [19:0] cool_cnt; // ÀäÈ´¼ÆÊıÆ÷
 
-    // çŸ©é˜µä½ç½®è®¡ç®—é€»è¾‘ï¼š(col-1)*5 + (row-1)
+    // ÀäÈ´Ê±¼ä³£Êı£º100,000 ¸öÖÜÆÚÔÚ 100MHz ÏÂµÈÓÚ 1ms£¬È·±£´®¿ÚÏß¾ø¶Ô¿ÕÏĞ
+    localparam COOL_TIME = 20'd100_000; 
+
     wire [4:0] cur_place = (col - 3'd1) * 3'd5 + (row - 3'd1);
 
-    // --- ç¬¬ä¸€æ®µï¼šåŒæ­¥æ—¶åºé€»è¾‘ (çŠ¶æ€è½¬æ¢) ---
+    // --- µÚÒ»¶Î£ºÊ±ĞòÂß¼­ ---
     always @(posedge clk or negedge rst_n) begin
-        if (!rst_n) 
-            state <= S_IDLE;
-        else 
-            state <= next_state;
+        if (!rst_n) state <= S_IDLE;
+        else        state <= next_state;
     end
 
-    // --- ç¬¬äºŒæ®µï¼šç»„åˆé€»è¾‘ (æ¬¡æ€è·³è½¬) ---
+    // --- µÚ¶ş¶Î£º×éºÏÂß¼­ (Ìø×ª¾ö²ß) ---
     always @(*) begin
         next_state = state;
         case (state)
-            S_IDLE: begin
-                if (start) next_state = S_PREPARE;
+            S_IDLE:       if (start) next_state = S_PREPARE;
+            S_PREPARE:    next_state = S_SET_DATA;
+            S_SET_DATA:   next_state = S_SEND_TRIG;
+            S_SEND_TRIG:  next_state = S_WAIT_START;
+            S_WAIT_START: if (uart_tx_busy) next_state = S_WAIT_DONE; // È·ÈÏÒÑÊÕµ½
+            S_WAIT_DONE:  if (!uart_tx_busy) next_state = S_COOL_DOWN; // È·ÈÏÒÑ·¢Íê
+            S_COOL_DOWN: begin
+                if (cool_cnt >= COOL_TIME) begin
+                    if (cell_idx == 5'd25) next_state = S_DONE;
+                    else                   next_state = S_SET_DATA;
+                end
             end
-            S_PREPARE: begin
-                next_state = S_SET_DATA;
-            end
-            S_SET_DATA: begin
-                next_state = S_SEND_TRIG;
-            end
-            S_SEND_TRIG: begin
-                next_state = S_WAIT_ACK;
-            end
-            S_WAIT_ACK: begin
-                // å¿…é¡»ç­‰åˆ° busy æ‹‰é«˜ï¼Œè¯æ˜ä¸²å£æ¨¡å—å·²ç»æ•è·åˆ°äº† en å’Œ data
-                if (uart_tx_busy) 
-                    next_state = S_WAIT_DONE;
-            end
-            S_WAIT_DONE: begin
-                // ç­‰åˆ° busy æ‹‰ä½ï¼Œè¯æ˜å½“å‰å­—ç¬¦å‘é€å½»åº•ç»“æŸ
-                if (!uart_tx_busy) 
-                    next_state = S_CHECK_NEXT;
-            end
-            S_CHECK_NEXT: begin
-                // å¦‚æœä¸€è¡Œè¿˜æ²¡å‘å®Œï¼Œæˆ–è€…æ€»ä»»åŠ¡æ²¡å®Œï¼Œè·³å› SET_DATA
-                if (cell_idx == 5'd25) 
-                    next_state = S_DONE;
-                else 
-                    next_state = S_SET_DATA;
-            end
-            S_DONE: begin
-                next_state = S_IDLE;
-            end
-            default: next_state = S_IDLE;
+            S_DONE:       next_state = S_IDLE;
+            default:      next_state = S_IDLE;
         endcase
     end
 
-    // --- ç¬¬ä¸‰æ®µï¼šåŒæ­¥æ—¶åºé€»è¾‘ (è¾“å‡ºåŠæ•°æ®è·¯å¾„) ---
+    // --- µÚÈı¶Î£ºÊ±ĞòÂß¼­ (Êı¾İÂ·¾¶ÓëÊä³ö) ---
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
-            uart_tx_en   <= 1'b0;
-            uart_tx_data <= 8'h00;
-            busy         <= 1'b0;
-            done         <= 1'b0;
-            step_cnt     <= 6'd0;
-            cell_idx     <= 5'd0;
-            row          <= 3'd1;
-            col          <= 3'd1;
+            uart_tx_en <= 0; uart_tx_data <= 0; busy <= 0; done <= 0;
+            step_cnt <= 0; cell_idx <= 0; row <= 1; col <= 1; cool_cnt <= 0;
         end else begin
             case (state)
                 S_IDLE: begin
-                    busy     <= 1'b0;
-                    done     <= 1'b0;
-                    step_cnt <= 6'd0;
-                    cell_idx <= 5'd0;
-                    row      <= 3'd1;
-                    col      <= 3'd1;
-                    uart_tx_en <= 1'b0;
+                    busy <= 0; done <= 0; step_cnt <= 0; cell_idx <= 0;
+                    row <= 1; col <= 1; cool_cnt <= 0; uart_tx_en <= 0;
                 end
 
                 S_PREPARE: begin
-                    busy   <= 1'b1;
+                    busy <= 1;
                     t_tens <= cnt / 10;
                     t_ones <= cnt % 10;
-                    // åœ¨æ­¤æå–ç¬¬ä¸€ä¸ªå•å…ƒçš„æ•°æ®
                     cur_cell_val <= info_table[49 - (cur_place << 1) -: 2];
                 end
 
                 S_SET_DATA: begin
-                    // çŠ¶æ€æœºæ ¸å¿ƒï¼šæ ¹æ® step_cnt å†³å®šå½“å‰å‘é€å“ªä¸ªå­—ç¬¦
-                    case (step_cnt)
-                        6'd0: uart_tx_data <= ASCII_0 + t_tens;   // 1. å‘é€æ€»æ•°åä½
-                        6'd1: uart_tx_data <= ASCII_0 + t_ones;   // 2. å‘é€æ€»æ•°ä¸ªä½
-                        6'd2: uart_tx_data <= ASCII_SPACE;        // 3. ç©ºæ ¼
-                        6'd3: uart_tx_data <= ASCII_0 + row;      // 4. M
-                        6'd4: uart_tx_data <= ASCII_STAR;         // 5. *
-                        6'd5: uart_tx_data <= ASCII_0 + col;      // 6. N
-                        6'd6: uart_tx_data <= ASCII_STAR;         // 7. *
-                        6'd7: uart_tx_data <= ASCII_0 + cur_cell_val; // 8. Value
-                        6'd8: uart_tx_data <= ASCII_SPACE;        // 9. é—´éš”ç©ºæ ¼
-                        6'd9: uart_tx_data <= ASCII_CR;           // 10. å›è½¦ (å¦‚æœ col=5)
-                        6'd10:uart_tx_data <= ASCII_LF;           // 11. æ¢è¡Œ (å¦‚æœ col=5)
-                        default: uart_tx_data <= ASCII_SPACE;
-                    endcase
+                    cool_cnt <= 0; // ÖØÖÃÀäÈ´¼ÆÊı
+                    // Èç¹ûµ±Ç°µ¥ÔªcntÎª0£¬Ìø¹ı´Ëµ¥Ôª
+                    if (cur_cell_val == 2'd0) begin
+                        // Ö±½ÓÌøµ½ÏÂÒ»¸öµ¥Ôª
+                        if (col == 3'd5) begin
+                            col <= 3'd1;
+                            row <= row + 1'b1;
+                        end else begin
+                            col <= col + 1'b1;
+                        end
+                        cell_idx <= cell_idx + 1'b1;
+                    end else begin
+                        case (step_cnt)
+                            6'd0:  uart_tx_data <= ASCII_0 + t_tens;
+                            6'd1:  uart_tx_data <= ASCII_0 + t_ones;
+                            6'd2:  uart_tx_data <= ASCII_SPACE;
+                            6'd3:  uart_tx_data <= ASCII_0 + row;
+                            6'd4:  uart_tx_data <= ASCII_STAR;
+                            6'd5:  uart_tx_data <= ASCII_0 + col;
+                            6'd6:  uart_tx_data <= ASCII_STAR;
+                            6'd7:  uart_tx_data <= ASCII_0 + cur_cell_val;
+                            6'd8:  uart_tx_data <= ASCII_SPACE;
+                            6'd9:  uart_tx_data <= ASCII_CR;
+                            6'd10: uart_tx_data <= ASCII_LF;
+                            default: uart_tx_data <= ASCII_SPACE;
+                        endcase
+                    end
                 end
 
                 S_SEND_TRIG: begin
-                    uart_tx_en <= 1'b1; // ä»…æ‹‰é«˜ä¸€ä¸ªå‘¨æœŸ
+                    uart_tx_en <= 1'b1;
                 end
 
-                S_WAIT_ACK, S_WAIT_DONE: begin
-                    uart_tx_en <= 1'b0; // å¿…é¡»ç«‹å³æ‹‰ä½ï¼Œé˜²æ­¢é‡å¤è§¦å‘
+                S_WAIT_START, S_WAIT_DONE: begin
+                    uart_tx_en <= 1'b0;
                 end
 
-                S_CHECK_NEXT: begin
-                    // æ›´æ–°ç´¢å¼•å’Œåæ ‡çš„å¤æ‚é€»è¾‘
-                    if (step_cnt < 6'd8) begin
-                        // å¸¸è§„å­—ç¬¦é€’å¢
-                        step_cnt <= step_cnt + 1'b1;
-                    end else if (step_cnt == 6'd8) begin
-                        // å‘å®Œç©ºæ ¼ååˆ¤æ–­æ˜¯å¦éœ€è¦å›è½¦æ¢è¡Œ
-                        if (col == 3'd5) begin
-                            step_cnt <= 6'd9; // å»å‘ CR
-                        end else begin
-                            // æ²¡åˆ°è¡Œæœ«ï¼Œå‡†å¤‡ä¸‹ä¸€ä¸ªå•å…ƒ
-                            step_cnt <= 6'd3; // è·³è¿‡æ€»æ•°ï¼Œç›´æ¥å‘ä¸‹ä¸€ä¸ª M*N*V
+                S_COOL_DOWN: begin
+                    cool_cnt <= cool_cnt + 1'b1;
+                    // ÔÚÀäÈ´ÆÚ¼äµÄµÚÒ»¸öÖÜÆÚ¸üĞÂÏÂÒ»´ÎÒª·¢ËÍµÄÄÚÈİ
+                    if (cool_cnt == 20'd1) begin
+                        if (step_cnt < 6'd8) begin
+                            step_cnt <= step_cnt + 1'b1;
+                        end else if (step_cnt == 6'd8) begin
+                            if (col == 3'd5) step_cnt <= 6'd9;
+                            else begin
+                                step_cnt <= 6'd3; // Ìø¹ı×ÜÊı
+                                cell_idx <= cell_idx + 1'b1;
+                                col      <= col + 1'b1;
+                            end
+                        end else if (step_cnt == 6'd9) begin
+                            step_cnt <= 6'd10;
+                        end else if (step_cnt == 6'd10) begin
                             cell_idx <= cell_idx + 1'b1;
-                            col      <= col + 1'b1;
-                            // æå‰é”å­˜ä¸‹ä¸€ä¸ªå•å…ƒæ•°æ®
-                            cur_cell_val <= info_table[49 - (((col) * 5 + (row - 1)) << 1) -: 2];
+                            if (cell_idx != 5'd24) begin
+                                step_cnt <= 6'd3;
+                                col <= 3'd1; row <= row + 1'b1;
+                            end else begin
+                                cell_idx <= 5'd25; // ×¼±¸Ìø DONE
+                            end
                         end
-                    end else if (step_cnt == 6'd9) begin
-                        step_cnt <= 6'd10; // å‘å®Œ CR å‘ LF
-                    end else if (step_cnt == 6'd10) begin
-                        // æ¢è¡Œå®Œæˆï¼Œè¿›å…¥ä¸‹ä¸€è¡Œæˆ–ç»“æŸ
-                        cell_idx <= cell_idx + 1'b1;
-                        if (cell_idx == 5'd24) begin
-                            cell_idx <= 5'd25; // æ ‡è®°ç»“æŸ
-                        end else begin
-                            step_cnt <= 6'd3;
-                            col <= 3'd1;
-                            row <= row + 1'b1;
-                            // æå‰é”å­˜ä¸‹ä¸€è¡Œå¼€å¤´çš„æ•°æ®
-                            cur_cell_val <= info_table[49 - (((0) * 5 + (row)) << 1) -: 2];
-                        end
+                    end
+                    // ÔÚÀäÈ´¿ì½áÊøÊ±ÌáÇ°Ëø´æÏÂÒ»ÅÄÊı¾İ£¬±£Ö¤ SET_DATA ×´Ì¬Êı¾İÎÈ¶¨
+                    if (cool_cnt == COOL_TIME - 1) begin
+                        cur_cell_val <= info_table[49 - (cur_place << 1) -: 2];
                     end
                 end
 
