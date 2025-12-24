@@ -47,26 +47,26 @@ module Central_Controller (
                 end
             end
             MODE_DATA_INPUT: begin
-                if (btn_exit|| (input_mode_exitable&& btn_confirm))
+                if (btn_confirm)
                     next_mode = MODE_IDLE;
                 else
                     next_mode = MODE_DATA_INPUT;
             end
             MODE_GENERATE: begin
-                if (btn_exit|| (generate_mode_exitable&& btn_confirm))
+                if (btn_confirm)
                     next_mode = MODE_IDLE;
                 else
                     next_mode = MODE_GENERATE;
             end
             MODE_DISPLAY: begin
-                if (btn_exit|| (display_mode_exitable&& btn_confirm))
+                if (btn_confirm)
                     next_mode = MODE_IDLE;
                 else
                     next_mode = MODE_DISPLAY;
                 
             end
             MODE_CALCULATION: begin
-                if (btn_exit|| (calculation_mode_exitable&& btn_confirm))
+                if (btn_confirm)
                     next_mode = MODE_IDLE;
                 else
                     next_mode = MODE_CALCULATION;

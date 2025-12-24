@@ -1,4 +1,4 @@
-// ����ģ�飺sys_top
+// ??????�sys_top
 
 module sys_top(
 	input wire clk,
@@ -16,14 +16,14 @@ module sys_top(
 );
 
 
-	// --- �������� ---
+	// --- ???????? ---
 	wire btn_confirm_db;
 	btn_debouncer u_btn_debouncer(
 		.clk(clk),
 		.rst_n(rst_n),
 		.btn_in(btn_confirm),
-		.btn_out(btn_confirm_db),
-        .pulse()
+		.btn_out(),
+        .pulse(btn_confirm_db)
 	);
     wire btn_exit_db;
     btn_debouncer u_btn_exit_debouncer(
@@ -50,7 +50,7 @@ module sys_top(
 	reg print_sent;
 	wire uart_tx_busy;
 
-	// --- print�ź����� ---
+	// --- print??????? ---
 	wire print_busy, print_done, print_dout_valid;
 	wire [7:0] print_dout;
 
@@ -66,12 +66,12 @@ module sys_top(
 	// --- Central Controller ---
 	wire data_input_mode_en;
 	wire generate_mode_en, display_mode_en, calculation_mode_en;
-	// ����mode_exitable�ź���ʱ����
+	// ????mode_exitable??????????
 	wire input_mode_exitable = 1'b1;
 	wire generate_mode_exitable = 1'b1;
 	wire display_mode_exitable = 1'b1;
 	wire calculation_mode_exitable = 1'b1;//?
-    // modeָʾ??
+    // mode????
     wire [7:0] led_wire;
     assign led_wire={4'b0,data_input_mode_en,generate_mode_en,display_mode_en,calculation_mode_en};
     always @(posedge clk or negedge rst_n) begin
@@ -86,7 +86,7 @@ module sys_top(
 	Central_Controller u_ctrl(
 		.clk(clk),
 		.rst_n(rst_n),
-		.command(command[2:0]), // ֻ��??3λ����������??
+		.command(command[2:0]), // ?????3��????????????
 		.btn_confirm(btn_confirm_db),
 		.btn_exit(btn_exit_db),
 		.input_mode_exitable(input_mode_exitable),
@@ -99,26 +99,26 @@ module sys_top(
 		.calculation_mode_en(calculation_mode_en)
 	);
 
-	// --- Ld2/�������?? ---
+	// --- Ld2/????????? ---
 	reg led0_on;
-	reg [24:0] led0_cnt; // 0.5�����������50MHzʱ��??0.5s=25_000_000
-	reg led1_on; // gen_doneָʾ??
+	reg [24:0] led0_cnt; // 0.5???????????50MHz?????0.5s=25_000_000
+	reg led1_on; // gen_done????
 	reg [24:0] led1_cnt;
-	reg led2_on; // gen_errorָʾ??
+	reg led2_on; // gen_error????
 	reg [24:0] led2_cnt;
-	reg led3_on; // gen_validָʾ??
+	reg led3_on; // gen_valid????
 	reg [24:0] led3_cnt;
 	wire [7:0] ld2_wire;
 	assign ld2_wire = {7'd0, led0_on};
 
 
-	// �������ʾ������δʹ�ã�ȫ������
+	// ??????????????��???????????
 	assign seg_data0 = 8'd0;
 	assign seg_data1 = 8'd0;
 	assign seg_sel0 = 8'd0;
 	assign seg_sel1 = 8'd0;
 
-	// --- led0�����߼� ---
+	// --- led0??????? ---
 	always @(posedge clk or negedge rst_n) begin
 	    if (!rst_n) begin
 	        led0_on <= 1'b0;
@@ -135,7 +135,7 @@ module sys_top(
 	    end
 	end
 
-	// --- led1�����߼� (gen_doneָʾ) ---
+	// --- led1??????? (gen_done??) ---
 	always @(posedge clk or negedge rst_n) begin
 	    if (!rst_n) begin
 	        led1_on <= 1'b0;
@@ -152,7 +152,7 @@ module sys_top(
 	    end
 	end
 
-	// --- led2�����߼� (gen_errorָʾ) ---
+	// --- led2??????? (gen_error??) ---
 	always @(posedge clk or negedge rst_n) begin
 	    if (!rst_n) begin
 	        led2_on <= 1'b0;
@@ -169,7 +169,7 @@ module sys_top(
 	    end
 	end
 
-	// --- led3�����߼� (gen_validָʾ) ---
+	// --- led3??????? (gen_valid??) ---
 	always @(posedge clk or negedge rst_n) begin
 	    if (!rst_n) begin
 	        led3_on <= 1'b0;
@@ -190,15 +190,15 @@ module sys_top(
         if (!rst_n) begin
             ld2 <= 8'd0;
         end else begin
-            ld2[0] <= ld2_wire[0]; // д�洢ָ??
-            ld2[1] <= led1_on;     // gen_done�ӳ���ʾ
-            ld2[2] <= led2_on;     // gen_error�ӳ���ʾ
-            ld2[3] <= led3_on;     // gen_valid�ӳ���ʾ
+            ld2[0] <= ld2_wire[0]; // ��?��???
+            ld2[1] <= led1_on;     // gen_done??????
+            ld2[2] <= led2_on;     // gen_error??????
+            ld2[3] <= led3_on;     // gen_valid??????
             ld2[4] <= ~debug_state[0];
             ld2[5] <= ~debug_state[1];
             ld2[6] <= ~debug_state[2];
             ld2[7] <= ~debug_state[3];
-// ��������λΪ0
+// ????????��?0
         end
     end
 
@@ -224,7 +224,7 @@ module sys_top(
 	);
 	
 	// --- Matrix Store (200??) ---
-    //�źű任
+    //???��
 	reg store_write_en;
 	reg [2:0] store_mat_col;
 	reg [2:0] store_mat_row;
@@ -235,12 +235,12 @@ module sys_top(
 			store_mat_col <= 3'd0;
 			store_mat_row <= 3'd0;
 			store_data_flow <= 200'd0;
-		end else if (parse_done) begin		//����ģ��Ĵ�??
+		end else if (parse_done) begin		//???????????
 			store_write_en <= 1'b1;
 			store_mat_col <= parsed_m;
 			store_mat_row <= parsed_n;
 			store_data_flow <= parsed_matrix_flat;
-		end else if (gen_valid) begin		//����ģ��Ĵ�??
+		end else if (gen_valid) begin		//???????????
 			store_write_en <= 1'b1;
 			store_mat_col <= gen_m;
 			store_mat_row <= gen_n;
@@ -250,7 +250,7 @@ module sys_top(
 		end
 	end
 
-	// ֻʵ��д�룬���ӿ���δ��
+	// ????��?????????��??
 	wire [49:0] info_table;
 	wire [7:0] total_count;
 	matrix_storage #(
@@ -274,7 +274,7 @@ module sys_top(
 		.total_count(total_count),
 		.info_table(info_table)
 	);
-	// generator_operateģ�����??
+	// generator_operate????????
 	wire [7:0] uart_data_gen;
 	assign uart_data_gen = uart_rx_data;
 	wire [199:0] gen_flow;
@@ -296,18 +296,18 @@ module sys_top(
 		.error(gen_error)
 	);
 
-	// --- Printģ���ź� ---
-	// Parseģʽ��ӡ�ź�
+	// --- Print?????? ---
+	// Parse????????
 	wire uart_tx_en_parse;
 	wire [7:0] uart_tx_data_parse;
 	wire print_done_parse;
 
-	// Generateģʽ��ӡ�ź�
+	// Generate????????
 	wire uart_tx_en_gen;
 	wire [7:0] uart_tx_data_gen;
 	wire print_done_gen;
 
-	// ����ģʽѡ��UART TX�ź�??
+	// ?????????UART TX?????
 	always @(*) begin
 		if (data_input_mode_en) begin
 			uart_tx_en = uart_tx_en_parse;
@@ -371,9 +371,9 @@ module sys_top(
 	print_table u_print_table (
 	.clk(clk),
 	.rst_n(rst_n),
-	.start(display_mode_en),
+	.start(print_table_start),
 	.uart_tx_busy(uart_tx_busy),
-	.uart_tx_en(uart_tx_en_start),
+	.uart_tx_en(uart_tx_en_table),
 	.uart_tx_data(uart_tx_data_table),
 	.info_table(info_table),
 	.cnt(total_count),
