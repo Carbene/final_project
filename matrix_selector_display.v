@@ -61,11 +61,10 @@ module matrix_selector_display #(
     localparam INPUT_ID                 = 5'd10;
     localparam INPUT_ID_WAIT            = 5'd11;
     localparam LOAD_MATRIX_REQ          = 5'd12;
-    localparam LOAD_MATRIX_WAIT         = 5'd13;
-    localparam DISPLAY_MATRIX           = 5'd14;
-    localparam DISPLAY_MATRIX_WAIT      = 5'd15;
-    localparam DONE_STATE               = 5'd16;
-    localparam ERROR_STATE              = 5'd17;
+    localparam DISPLAY_MATRIX           = 5'd13;
+    localparam DISPLAY_MATRIX_WAIT      = 5'd14;
+    localparam DONE_STATE               = 5'd15;
+    localparam ERROR_STATE              = 5'd16;
 
     // 状态寄存器
     reg [4:0] state, next_state;
@@ -111,19 +110,11 @@ module matrix_selector_display #(
             
             INPUT_DIM_M_WAIT: begin
                 if (uart_input_valid) begin
-                    if (!dim_m_valid) begin
-                        // 仅接受一位 1..MAX_DIM
-                        if (valid_m_digit)
-                            next_state = INPUT_DIM_M_WAIT;  // 等待分隔符
-                        else
-                            next_state = ERROR_STATE;  // 非法或缺失输入
-                    end else begin
-                        // 已有一位数字，仅接受空格作为分隔符
-                        if (is_space)
-                            next_state = INPUT_DIM_N;
-                        else
-                            next_state = ERROR_STATE;  // 多位数字或错误分隔
-                    end
+                    // 仅接受一位 1..MAX_DIM，不需要空格分隔，直接进入 N
+                    if (valid_m_digit)
+                        next_state = INPUT_DIM_N;
+                    else
+                        next_state = ERROR_STATE;  // 非法输入
                 end
             end
             
@@ -132,17 +123,11 @@ module matrix_selector_display #(
             
             INPUT_DIM_N_WAIT: begin
                 if (uart_input_valid) begin
-                    if (!dim_n_valid) begin
-                        if (valid_n_digit)
-                            next_state = INPUT_DIM_N_WAIT;
-                        else
-                            next_state = ERROR_STATE;
-                    end else begin
-                        if (is_space)
-                            next_state = CHECK_DIM_EXISTS;
-                        else
-                            next_state = ERROR_STATE;
-                    end
+                    // 仅接受一位 1..MAX_DIM，不需要空格分隔，直接检查维度
+                    if (valid_n_digit)
+                        next_state = CHECK_DIM_EXISTS;
+                    else
+                        next_state = ERROR_STATE;
                 end
             end
             
@@ -170,25 +155,15 @@ module matrix_selector_display #(
             
             INPUT_ID_WAIT: begin
                 if (uart_input_valid) begin
-                    if (!matrix_id_valid) begin
-                        if (valid_id_digit)
-                            next_state = INPUT_ID_WAIT;  // 等待行结束
-                        else
-                            next_state = ERROR_STATE;     // 非法或缺失输入
-                    end else begin
-                        if (is_crlf)
-                            next_state = LOAD_MATRIX_REQ;
-                        else
-                            next_state = ERROR_STATE;     // 追加多位或错误分隔
-                    end
+                    // 仅接受一位 1..MAX_MATRIX_ID，不需要回车换行
+                    if (valid_id_digit)
+                        next_state = LOAD_MATRIX_REQ;
+                    else
+                        next_state = ERROR_STATE;
                 end
             end
             
             LOAD_MATRIX_REQ:
-                if (rd_ready)
-                    next_state = LOAD_MATRIX_WAIT;
-            
-            LOAD_MATRIX_WAIT:
                 if (rd_ready)
                     next_state = DISPLAY_MATRIX;
             
@@ -297,10 +272,13 @@ module matrix_selector_display #(
                     rd_col <= dim_m_buffer;
                     rd_row <= dim_n_buffer;
                     rd_mat_index <= matrix_id_buffer;
+                    // 在检测到 rd_ready 的同周期锁存数据并启动打印
+                    if (rd_ready) begin
+                        matrix_flat <= rd_data_flow;
+                    end
                 end
                 
                 DISPLAY_MATRIX: begin
-                    matrix_flat <= rd_data_flow;
                     matrix_print_start <= 1'b1;  // 脉冲启动矩阵打印
                 end
                 
