@@ -66,11 +66,8 @@ module sys_top(
 	// --- Central Controller ---
 	wire data_input_mode_en;
 	wire generate_mode_en, display_mode_en, calculation_mode_en;
-	// ����mode_exitable�ź���ʱ����
-	wire input_mode_exitable = 1'b1;
-	wire generate_mode_exitable = 1'b1;
-	wire display_mode_exitable = 1'b1;
-	wire calculation_mode_exitable = 1'b1;//?
+	
+
     // modeָʾ??
     wire [7:0] led_wire;
     assign led_wire={4'b0,data_input_mode_en,generate_mode_en,display_mode_en,calculation_mode_en};
@@ -89,13 +86,13 @@ module sys_top(
 		.command(command[2:0]), // ֻ��??3λ����������??
 		.btn_confirm(btn_confirm_db),
 		.btn_exit(btn_exit_db),
-		.input_mode_exitable(input_mode_exitable),
+		
 		.data_input_mode_en(data_input_mode_en),
-		.generate_mode_exitable(generate_mode_exitable),
+		
 		.generate_mode_en(generate_mode_en),
-		.display_mode_exitable(display_mode_exitable),
+		
 		.display_mode_en(display_mode_en),
-		.calculation_mode_exitable(calculation_mode_exitable),
+		
 		.calculation_mode_en(calculation_mode_en)
 	);
 
