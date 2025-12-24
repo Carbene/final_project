@@ -1,4 +1,18 @@
-// ??????�sys_top
+// ========================================
+// ϵͳ����ģ�� sys_top
+// ========================================
+// ����: ��������ϵͳ���㼯��
+// 
+// ��Ҫ����ģ��:
+// 1. ��������ģʽ: UART���� -> ���� -> �洢 -> ��ӡ����
+// 2. ����ģʽ: ������ɾ��� -> �洢 -> ��ӡ
+// 3. ��ʾģʽ: ��ѯ����ʾ�Ѵ洢�ľ���
+// 4. ����ģʽ: �������� (��ʵ��)
+//
+// ������:
+//   UART RX -> Parser/Generator -> Matrix Storage -> Display/Calculate
+//                                                  -> UART TX
+// ========================================
 
 module sys_top(
 	input wire clk,
@@ -17,7 +31,7 @@ module sys_top(
 );
 
 
-	// --- ???????? ---
+	// --- �������� Button Debouncer ---
 	wire btn_confirm_db;
 	btn_debouncer u_btn_debouncer(
 		.clk(clk),
@@ -26,31 +40,21 @@ module sys_top(
 		.btn_out(),
         .pulse(btn_confirm_db)
 	);
-    wire btn_exit_db;
-    btn_debouncer u_btn_exit_debouncer(
-        .clk(clk),
-        .rst_n(rst_n),
-        .btn_in(btn_exit),
-        .btn_out(btn_exit_db),
-        .pulse()
-    );
-    // --- UART RX ---
+    // --- UART RX ���ڽ��� ---
 	wire uart_rx_done;
 	wire [7:0] uart_rx_data;
-	uart_rx u_rx(
+	uart_rx u_uart_rx(
 		.clk(clk),
 		.rst_n(rst_n),
 		.uart_rxd(uart_rxd),
 		.uart_rx_done(uart_rx_done),
 		.uart_rx_data(uart_rx_data)
 	);
-
     // --- UART TX ---
 	reg uart_tx_en;
 	reg [7:0] uart_tx_data;
 	reg print_sent;
 	wire uart_tx_busy;
-
 	// --- print??????? ---
 	wire print_busy, print_done, print_dout_valid;
 	wire [7:0] print_dout;
@@ -66,10 +70,12 @@ module sys_top(
 
 	// --- Central Controller ---
 	wire data_input_mode_en;
-	wire generate_mode_en, display_mode_en, calculation_mode_en;
+	wire generate_mode_en;
+	wire display_mode_en;
+	wire calculation_mode_en;
 	
 
-    // modeָʾ??
+    // mode????
     wire [7:0] led_wire;
     assign led_wire={4'b0,data_input_mode_en,generate_mode_en,display_mode_en,calculation_mode_en};
     always @(posedge clk or negedge rst_n) begin
@@ -84,9 +90,8 @@ module sys_top(
 	Central_Controller u_ctrl(
 		.clk(clk),
 		.rst_n(rst_n),
-		.command(command[2:0]), // ?????3��????????????
+		.command(command[2:0]),
 		.btn_confirm(btn_confirm_db),
-		.btn_exit(btn_exit_db),
 		
 		.data_input_mode_en(data_input_mode_en),
 		
@@ -97,31 +102,26 @@ module sys_top(
 		.calculation_mode_en(calculation_mode_en)
 	);
 
-	// --- Ld2/????????? ---
+	// --- LED״ָ̬ʾ�ƿ��� ---
 	reg led0_on;
-	reg [24:0] led0_cnt; // 0.5???????????50MHz?????0.5s=25_000_000
-	reg led1_on; // gen_done????
+	reg [24:0] led0_cnt; // 0.5����˸��������50MHzʱ����0.5s=25_000_000
+	reg led1_on; // gen_done״ָ̬ʾ
 	reg [24:0] led1_cnt;
-	reg led2_on; // gen_error????
+	reg led2_on; // gen_error״ָ̬ʾ
 	reg [24:0] led2_cnt;
-	reg led3_on; // gen_valid????
+	reg led3_on; // gen_valid״ָ̬ʾ
 	reg [24:0] led3_cnt;
 	wire [7:0] ld2_wire;
 	assign ld2_wire = {7'd0, led0_on};
 
 
 	// ??????????????��???????????
-	always @(*) begin
-		if (calculation_mode_en) begin
-			dk1_segments = dk1_segments_countdown;
-			dk_digit_select = dk_digit_select_countdown;
-		end else begin
-			dk1_segments = 8'd0;
-			dk_digit_select = 8'd0;
-		end
-	end
+	assign seg_data0 = 8'd0;
+	assign seg_data1 = 8'd0;
+	assign seg_sel0 = 8'd0;
+	assign seg_sel1 = 8'd0;
 
-	// --- led0??????? ---
+	// --- LED0��˸���� (�洢ָʾ) ---
 	always @(posedge clk or negedge rst_n) begin
 	    if (!rst_n) begin
 	        led0_on <= 1'b0;
@@ -138,7 +138,7 @@ module sys_top(
 	    end
 	end
 
-	// --- led1??????? (gen_done??) ---
+	// --- LED1��˸���� (�������ָʾ) ---
 	always @(posedge clk or negedge rst_n) begin
 	    if (!rst_n) begin
 	        led1_on <= 1'b0;
@@ -155,7 +155,7 @@ module sys_top(
 	    end
 	end
 
-	// --- led2??????? (gen_error??) ---
+	// --- LED2��˸���� (���ɴ���ָʾ) ---
 	always @(posedge clk or negedge rst_n) begin
 	    if (!rst_n) begin
 	        led2_on <= 1'b0;
@@ -172,7 +172,7 @@ module sys_top(
 	    end
 	end
 
-	// --- led3??????? (gen_valid??) ---
+	// --- LED3��˸���� (������Чָʾ) ---
 	always @(posedge clk or negedge rst_n) begin
 	    if (!rst_n) begin
 	        led3_on <= 1'b0;
@@ -189,25 +189,26 @@ module sys_top(
 	    end
 	end
 
+    // LD2���鸳ֵ (�ۺ�״̬��ʾ)
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             ld2 <= 8'd0;
         end else begin
-            ld2[0] <= ld2_wire[0]; // ��?��???
-            ld2[1] <= led1_on;     // gen_done??????
-            ld2[2] <= led2_on;     // gen_error??????
-            ld2[3] <= led3_on;     // gen_valid??????
-            ld2[4] <= ~debug_state[0];
+            ld2[0] <= ld2_wire[0];  // ����洢ָʾ
+            ld2[1] <= led1_on;      // gen_done�������
+            ld2[2] <= led2_on;      // gen_error���ɴ���
+            ld2[3] <= led3_on;      // gen_valid������Ч
+            ld2[4] <= ~debug_state[0]; // print_table״̬������
             ld2[5] <= ~debug_state[1];
             ld2[6] <= ~debug_state[2];
             ld2[7] <= ~debug_state[3];
-// ????????��?0
         end
     end
 
-	
-
-	// --- UART Parser ---
+	// --- UART Parser ���ڽ����� ---
+	// ����: ����UART���յľ������ݸ�ʽ
+	// ����: uart_rx_data, uart_rx_done, data_input_mode_en
+	// ���: parsed_m, parsed_n, parsed_matrix_flat, parse_done, parse_error
 	wire [2:0] parsed_m, parsed_n;
 	wire [199:0] parsed_matrix_flat;
 	wire parse_done, parse_error;
@@ -225,9 +226,9 @@ module sys_top(
 		.parse_done(parse_done),
 		.parse_error(parse_error)
 	);
-	
-	// --- Matrix Store (200??) ---
-    //???��
+	// --- Matrix Store ����洢�����߼� ---
+	// ����: �����������ɵľ���д��洢ģ��
+	// ��������: parse_done (�������) �� gen_valid (������Ч)
 	reg store_write_en;
 	reg [2:0] store_mat_col;
 	reg [2:0] store_mat_row;
@@ -238,12 +239,14 @@ module sys_top(
 			store_mat_col <= 3'd0;
 			store_mat_row <= 3'd0;
 			store_data_flow <= 200'd0;
-		end else if (parse_done) begin		//???????????
+		end else if (parse_done) begin
+			// ��������ģʽ: �洢������ľ���
 			store_write_en <= 1'b1;
 			store_mat_col <= parsed_m;
 			store_mat_row <= parsed_n;
 			store_data_flow <= parsed_matrix_flat;
-		end else if (gen_valid) begin		//???????????
+		end else if (gen_valid) begin
+			// ����ģʽ: �洢���ɵľ���
 			store_write_en <= 1'b1;
 			store_mat_col <= gen_m;
 			store_mat_row <= gen_n;
@@ -253,9 +256,18 @@ module sys_top(
 		end
 	end
 
-	// ????��?????????��??
-	wire [49:0] info_table;
-	wire [7:0] total_count;
+	// --- Matrix Storage ����洢ģ�� ---
+	// ���ڴ洢���������ɵľ�������
+	wire [49:0] info_table;        // ������Ϣ�� (ÿ������5�ֽ�:�С��С�ID��)
+	wire [7:0] total_count;        // �Ѵ洢��������
+	wire store_read_en;            // ��ʹ�� (���ӵ�displayģ��)
+	wire [2:0] store_rd_col;       // ��ȡ�ľ�������
+	wire [2:0] store_rd_row;       // ��ȡ�ľ�������
+	wire [1:0] store_rd_mat_index; // ��ȡ�ľ�������
+	wire [199:0] store_rd_data_flow; // ��ȡ�ľ���������
+	wire store_rd_ready;           // ��ȡ׼���ź�
+	wire store_err_rd;             // ��ȡ�����ź�
+	
 	matrix_storage #(
 		.DATAWIDTH(8),
 		.MAXNUM(2),
@@ -263,21 +275,27 @@ module sys_top(
 	) u_store (
 		.clk(clk),
 		.rst_n(rst_n),
+		// д�ӿ� - ���ӵ�parse��generateģ��
 		.write_en(store_write_en),
 		.mat_col(store_mat_col),
 		.mat_row(store_mat_row),
 		.data_flow(store_data_flow),
-		.read_en(1'b0),
-		.rd_col(3'd0),
-		.rd_row(3'd0),
-		.rd_mat_index(2'd0),
-		.rd_data_flow(),
-		.rd_ready(),
-		.err_rd(),
+		// ���ӿ� - ���ӵ�displayģ��
+		.read_en(store_read_en),
+		.rd_col(store_rd_col),
+		.rd_row(store_rd_row),
+		.rd_mat_index(store_rd_mat_index),
+		.rd_data_flow(store_rd_data_flow),
+		.rd_ready(store_rd_ready),
+		.err_rd(store_err_rd),
+		// ״̬���
 		.total_count(total_count),
 		.info_table(info_table)
 	);
-	// generator_operate????????
+	
+	// --- Generate Mode ��������ģʽ ---
+	// ����: ����UART����Ĳ���������ɾ���
+	// ����UART RX��������
 	wire [7:0] uart_data_gen;
 	assign uart_data_gen = uart_rx_data;
 	wire [199:0] gen_flow;
@@ -299,78 +317,92 @@ module sys_top(
 		.error(gen_error)
 	);
 
-	// --- Print?????? ---
-	// Parse????????
+	// --- Print��ӡ���� UART TX��·���� ---
+	// Parseģʽ��UART����ź�
 	wire uart_tx_en_parse;
 	wire [7:0] uart_tx_data_parse;
 	wire print_done_parse;
 
-	// Generate????????
+	// Generateģʽ��UART����ź�
 	wire uart_tx_en_gen;
 	wire [7:0] uart_tx_data_gen;
 	wire print_done_gen;
 
-	// ?????????UART TX?????
+	// Displayģʽ��UART����ź�
+	wire uart_tx_en_display;
+	wire [7:0] uart_tx_data_display;
+
+	// UART TX��·������ - ���ݵ�ǰģʽѡ�����Դ
 	always @(*) begin
 		if (data_input_mode_en) begin
+			// ��������ģʽ - ���������ľ���
 			uart_tx_en = uart_tx_en_parse;
 			uart_tx_data = uart_tx_data_parse;
 		end else if (generate_mode_en) begin
+			// ����ģʽ - ������ɵľ���
 			uart_tx_en = uart_tx_en_gen;
 			uart_tx_data = uart_tx_data_gen;
 		end else if (display_mode_en) begin
-			uart_tx_en = uart_tx_en_table;
-			uart_tx_data = uart_tx_data_table;
+			// ��ʾģʽ - ��������ָ������
+			if(print_busy_table) begin
+				uart_tx_en = uart_tx_en_table;
+				uart_tx_data = uart_tx_data_table;
+			end else begin
+				uart_tx_en = uart_tx_en_spec;
+				uart_tx_data = uart_tx_data_spec;
+			end
 		end else begin
 			uart_tx_en = 1'b0;
 			uart_tx_data = 8'd0;
 		end
 	end
 
-	//Print for parse
+	// --- Matrix Printer for Parse ����ģʽ�����ӡ ---
+	// ������: uart_parser -> parsed_matrix_flat -> matrix_printer -> UART TX
 	matrix_printer u_print_for_parse (
 		.clk(clk),
 		.rst_n(rst_n),
-		.start(parse_done),
-		.matrix_flat(parsed_matrix_flat),
-		.dimM(parsed_m),
-		.dimN(parsed_n),
-		.use_crlf(1'b1),
-		.tx_start(uart_tx_en_parse),
-		.tx_data(uart_tx_data_parse),
-		.tx_busy(uart_tx_busy),
-		.done(print_done_parse)
+		.start(parse_done),              // �������ʱ������ӡ
+		.matrix_flat(parsed_matrix_flat), // ����: ������ľ�������
+		.dimM(parsed_m),                 // ����: ��������
+		.dimN(parsed_n),                 // ����: ��������
+		.use_crlf(1'b1),                 // ʹ�ûس�����
+		.tx_start(uart_tx_en_parse),     // ���: UART����ʹ��
+		.tx_data(uart_tx_data_parse),    // ���: UART��������
+		.tx_busy(uart_tx_busy),          // ����: UARTæ״̬
+		.done(print_done_parse)          // ���: ��ӡ���
 	);
-    // --- Print  For Gnerate---
+	
+    // --- Matrix Printer for Generate ����ģʽ�����ӡ ---
+    // ������: generate_mode -> gen_flow -> matrix_printer -> UART TX
 	matrix_printer u_print_for_generate (
 		.clk(clk),
 		.rst_n(rst_n),
-		.start(gen_valid),
-		.matrix_flat(gen_flow),
-		.dimM(gen_m),
-		.dimN(gen_n),
-		.use_crlf(1'b1),
-		.tx_start(uart_tx_en_gen),
-		.tx_data(uart_tx_data_gen),
-		.tx_busy(uart_tx_busy),
-		.done(print_done_gen)
+		.start(gen_valid),            // ������Чʱ������ӡ
+		.matrix_flat(gen_flow),       // ����: ���ɵľ�������
+		.dimM(gen_m),                 // ����: ���ɵľ�������
+		.dimN(gen_n),                 // ����: ���ɵľ�������
+		.use_crlf(1'b1),              // ʹ�ûس�����
+		.tx_start(uart_tx_en_gen),    // ���: UART����ʹ��
+		.tx_data(uart_tx_data_gen),   // ���: UART��������
+		.tx_busy(uart_tx_busy),       // ����: UARTæ״̬
+		.done(print_done_gen)         // ���: ��ӡ���
 	);
-    // --- Print table For Display---
-	wire uart_tx_en_table;
-	wire [7:0] uart_tx_data_table;
-	wire print_busy_table, print_done_table;
-	reg print_table_d1, print_table_d2;
-	wire print_table_start = print_table_d1 && !print_table_d2;
-	always@(posedge clk or negedge rst_n) begin
-		if (!rst_n) begin
-			print_table_d1 <= 1'b0;
-			print_table_d2 <= 1'b0;
-		end else begin
-			print_table_d1 <= display_mode_en;
-			print_table_d2 <= print_table_d1;
-		end
-	end
-	wire [3:0] debug_state;
+	
+	// ========== Display Mode ��ʾģʽ ==========
+	// ������: display_mode_en -> matrix_selector_display -> print_table �� print_specified_dim_matrix
+	//        -> matrix_storage (��ȡ) -> matrix_printer -> UART TX
+	
+	// --- Print Table ��ӡ�����ź� ---
+	wire uart_tx_en_table;           // �����ӡUARTʹ��
+	wire [7:0] uart_tx_data_table;   // �����ӡUART����
+	wire print_busy_table;           // �����ӡæ״̬
+	wire print_done_table;           // �����ӡ���
+	wire print_table_start;          // �����ӡ�����ź�
+	wire [3:0] debug_state;          // ����״̬ (����LED��ʾ)
+	
+	// Print Table ģ�� - ��ӡ������Ϣ��
+	// ������: info_table -> print_table -> UART TX
 	print_table u_print_table (
 	.clk(clk),
 	.rst_n(rst_n),
@@ -386,29 +418,6 @@ module sys_top(
 	);
 
     // --- Print for calculate ---
-
-
-
-
-
-
-	//----countdown part 的实例化------
-	wire countdown_done;
-	wire countdown_feedback;
-	wire [7:0] dk1_segments_countdown;
-	// wire [7:0] dk2_segments_countdown;  // 移除，公用dk1_segments
-	wire [7:0] dk_digit_select_countdown;//只用左四位接给
-
-	countdown_controller u_countdown (
-		.clk(clk),
-		.rst_n(rst_n),
-		.start(),//需要一些error接给他
-		.done(countdown_done),    //自动结束
-		.btn_confirm(btn_countdown),
-		.feedback(countdown_feedback),       //立即响应
-		.dk1_segments(dk1_segments_countdown),
-		.dk_digit_select(dk_digit_select_countdown)
-	);
 
 	
 

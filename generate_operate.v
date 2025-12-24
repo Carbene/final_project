@@ -127,7 +127,7 @@ module generate_mode#(
             end
             WAIT_WRITE: if(gen_cnt==num) next_state = DONE;
                         else next_state = GENERATE;
-            DONE: next_state = IDLE;
+            DONE: if(!start) next_state = IDLE;
             ERR: next_state = RECEIVE_M;
             default: next_state = IDLE;
         endcase

@@ -4,7 +4,7 @@ module matrix_selector_display #(
 )(
     input clk,
     input rst_n,
-    input selector_en,
+    input start,
     
     // 与 print_table 通信：显示所有矩阵列表
     output reg print_table_start,
@@ -12,7 +12,6 @@ module matrix_selector_display #(
     input print_table_done,
     
     // 与 UART 接收通信：获取用户输入的 m, n, id
-    output reg uart_input_req,
     input [7:0] uart_input_data,
     input uart_input_valid,
     
@@ -46,7 +45,7 @@ module matrix_selector_display #(
 
     localparam [7:0] MAX_DIM_ASCII = 8'h30 + MAX_DIM;
     localparam [7:0] MAX_ID_ASCII  = 8'h30 + MAX_MATRIX_ID;
-    localparam [2:0] MAX_DIM_3B    = 3'dMAX_DIM;
+    localparam [2:0] MAX_DIM_3B    = MAX_DIM[2:0];  // 参数值范围 1..5，收窄为 3 位
 
     // 状态定义
     localparam IDLE                     = 5'd0;
@@ -96,7 +95,7 @@ module matrix_selector_display #(
         next_state = state;
         case (state)
             IDLE:
-                if (selector_en)
+                if (start)
                     next_state = DISPLAY_TABLE;
             
             DISPLAY_TABLE:
@@ -202,6 +201,7 @@ module matrix_selector_display #(
                     next_state = DONE_STATE;
             
             DONE_STATE:
+            if(!start)
                 next_state = IDLE;
             
             ERROR_STATE:
@@ -216,7 +216,6 @@ module matrix_selector_display #(
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             print_table_start <= 1'b0;
-            uart_input_req <= 1'b0;
             print_spec_start <= 1'b0;
             spec_dim_m <= 3'd0;
             spec_dim_n <= 3'd0;
@@ -238,7 +237,6 @@ module matrix_selector_display #(
         end else begin
             // 默认清除脉冲信号
             print_table_start <= 1'b0;
-            uart_input_req <= 1'b0;
             print_spec_start <= 1'b0;
             read_en <= 1'b0;
             matrix_print_start <= 1'b0;
@@ -256,8 +254,7 @@ module matrix_selector_display #(
                     matrix_id_valid <= 1'b0;
                 end
                 
-                INPUT_DIM_M: begin
-                    uart_input_req <= 1'b1;  // 请求用户输入 m
+                INPUT_DIM_M: begin // 请求用户输入 m
                 end
                 
                 INPUT_DIM_M_WAIT: begin
@@ -269,7 +266,6 @@ module matrix_selector_display #(
                 end
                 
                 INPUT_DIM_N: begin
-                    uart_input_req <= 1'b1;  // 请求用户输入 n
                 end
                 
                 INPUT_DIM_N_WAIT: begin
@@ -286,7 +282,6 @@ module matrix_selector_display #(
                 end
                 
                 INPUT_ID: begin
-                    uart_input_req <= 1'b1;  // 请求用户输入 id
                 end
                 
                 INPUT_ID_WAIT: begin
