@@ -30,7 +30,7 @@ module generate_mode#(
     reg [15:0] lfsr;
     reg [7:0] v;
     reg busy;
-    wire [7:0] dealed_data = uart_data - 8'x; // ASCII '0'=0x30=48，转数值
+    wire [7:0] dealed_data = uart_data - 8'h30; // ASCII '0'=0x30=48，转数值
 
     always @(posedge clk or negedge rst_n) begin
         if(!rst_n) begin
