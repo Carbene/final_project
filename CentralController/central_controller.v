@@ -5,13 +5,13 @@ module Central_Controller (
     input btn_confirm,
     input btn_exit,
 
-    
+    input input_mode_exitable,
     output reg data_input_mode_en,
-
+    input generate_mode_exitable,
     output reg generate_mode_en,
-
+    input display_mode_exitable,
     output reg display_mode_en,
-
+    input calculation_mode_exitable,
     output reg calculation_mode_en
 );
 
@@ -47,74 +47,26 @@ module Central_Controller (
                 end
             end
             MODE_DATA_INPUT: begin
-                if (btn_confirm) begin
-                    case(command)
-                        3'd1: next_mode = MODE_DATA_INPUT;   // '1'
-                        3'd2: next_mode = MODE_GENERATE;     // '2'
-                        3'd3: next_mode = MODE_DISPLAY;      // '3'
-                        3'd4: next_mode = MODE_CALCULATION;  // '4'
-                        3'd0: next_mode = MODE_IDLE;         // '0'
-                        3'd5: next_mode = MODE_IDLE;         // '5' reserved for settings mode
-                        3'd6: next_mode = MODE_IDLE;         // '6' reserved for future use
-                        3'd7: next_mode = MODE_IDLE;         // '7' reserved for
-                    endcase
-                end
-                else if (btn_exit)
+                if (btn_confirm)
                     next_mode = MODE_IDLE;
                 else
                     next_mode = MODE_DATA_INPUT;
             end
             MODE_GENERATE: begin
-                if (btn_confirm) begin
-                    case(command)
-                        3'd1: next_mode = MODE_DATA_INPUT;   // '1'
-                        3'd2: next_mode = MODE_GENERATE;     // '2'
-                        3'd3: next_mode = MODE_DISPLAY;      // '3'
-                        3'd4: next_mode = MODE_CALCULATION;  // '4'
-                        3'd0: next_mode = MODE_IDLE;         // '0'
-                        3'd5: next_mode = MODE_IDLE;         // '5' reserved for settings mode
-                        3'd6: next_mode = MODE_IDLE;         // '6' reserved for future use
-                        3'd7: next_mode = MODE_IDLE;         // '7' reserved for
-                    endcase
-                end
-                else if (btn_exit)
+                if (btn_confirm)
                     next_mode = MODE_IDLE;
                 else
                     next_mode = MODE_GENERATE;
             end
             MODE_DISPLAY: begin
-                if (btn_confirm) begin
-                    case(command)
-                        3'd1: next_mode = MODE_DATA_INPUT;   // '1'
-                        3'd2: next_mode = MODE_GENERATE;     // '2'
-                        3'd3: next_mode = MODE_DISPLAY;      // '3'
-                        3'd4: next_mode = MODE_CALCULATION;  // '4'
-                        3'd0: next_mode = MODE_IDLE;         // '0'
-                        3'd5: next_mode = MODE_IDLE;         // '5' reserved for settings mode
-                        3'd6: next_mode = MODE_IDLE;         // '6' reserved for future use
-                        3'd7: next_mode = MODE_IDLE;         // '7' reserved for
-                    endcase
-                end
-                else if (btn_exit)
+                if (btn_confirm)
                     next_mode = MODE_IDLE;
                 else
                     next_mode = MODE_DISPLAY;
                 
             end
             MODE_CALCULATION: begin
-                if (btn_confirm) begin
-                    case(command)
-                        3'd1: next_mode = MODE_DATA_INPUT;   // '1'
-                        3'd2: next_mode = MODE_GENERATE;     // '2'
-                        3'd3: next_mode = MODE_DISPLAY;      // '3'
-                        3'd4: next_mode = MODE_CALCULATION;  // '4'
-                        3'd0: next_mode = MODE_IDLE;         // '0'
-                        3'd5: next_mode = MODE_IDLE;         // '5' reserved for settings mode
-                        3'd6: next_mode = MODE_IDLE;         // '6' reserved for future use
-                        3'd7: next_mode = MODE_IDLE;         // '7' reserved for
-                    endcase
-                end
-                else if (btn_exit)
+                if (btn_confirm)
                     next_mode = MODE_IDLE;
                 else
                     next_mode = MODE_CALCULATION;

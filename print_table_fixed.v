@@ -38,9 +38,10 @@ module print_table(
     reg [2:0] row, col; 
     reg [7:0] t_tens, t_ones;
     reg [1:0] cur_cell_val;
-    reg wait_tx_done; // 等待 uart_tx 完成当前字节
-    reg send_done;    // 当前字符发送完成
-    reg header_done; 
+    reg [19:0] cool_cnt;
+    reg header_done;
+
+    localparam COOL_TIME = 20'd100_000; 
 
     // 计算当前 2-bit 在 info_table 中的位置
     wire [5:0] bit_pos = cell_idx << 1;
@@ -84,14 +85,14 @@ module print_table(
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             uart_tx_en <= 0; uart_tx_data <= 0; busy <= 0; done <= 0;
-            step_cnt <= 0; cell_idx <= 0; row <= 1; col <= 1;
-            wait_tx_done <= 1'b0; send_done <= 1'b0; header_done <= 0;
+            step_cnt <= 0; cell_idx <= 0; row <= 1; col <= 1; cool_cnt <= 0;
+            header_done <= 0;
         end else begin
             case (state)
                 S_IDLE: begin
                     busy <= 0; done <= 0; step_cnt <= 0; cell_idx <= 0;
-                    row <= 1; col <= 1; wait_tx_done <= 1'b0; send_done <= 1'b0;
-                    uart_tx_en <= 0; header_done <= 0;
+                    row <= 1; col <= 1; cool_cnt <= 0; uart_tx_en <= 0;
+                    header_done <= 0;
                 end
 
                 S_FETCH: begin
@@ -106,7 +107,6 @@ module print_table(
                 end
 
                 S_SET_DATA: begin
-                    send_done <= 1'b0; // 重置发送完成标志
                     case (step_cnt)
                         4'd0:  uart_tx_data <= ASCII_0 + t_tens;
                         4'd1:  uart_tx_data <= ASCII_0 + t_ones;
@@ -116,6 +116,7 @@ module print_table(
                         4'd5:  uart_tx_data <= ASCII_0 + col;
                         4'd6:  uart_tx_data <= ASCII_STAR;
                         4'd7:  uart_tx_data <= ASCII_0 + cur_cell_val;
+                        4'd8:  uart_tx_data <= ASCII_SPACE;
                         default: uart_tx_data <= ASCII_SPACE;
                     endcase
                 end
