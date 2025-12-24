@@ -30,9 +30,10 @@ localparam PARSE_DATA = 3'd3;
 localparam DONE       = 3'd4;
 localparam ERROR      = 3'd5;
 
-// 超时参数 (50MHz时钟)
-parameter IDLE_TIMEOUT_CYCLES = 32'd250_000_000;  // 按下S2后未开始输入：5秒超时
-parameter GAP_TIMEOUT_CYCLES  = 32'd25_000_000;   // 输入过程中/结束后无字符：0.5秒收尾/超时
+// 超时参数 (默认100MHz时钟)
+parameter integer CLK_FREQ_HZ         = 100_000_000;
+localparam [31:0] IDLE_TIMEOUT_CYCLES = CLK_FREQ_HZ * 5;   // 按下S2后未开始输入：5秒超时
+localparam [31:0] GAP_TIMEOUT_CYCLES  = CLK_FREQ_HZ / 2;   // 输入过程中/结束后无字符：0.5秒收尾/超时
 
 reg [2:0]  state;
 reg [4:0]  elem_index;
