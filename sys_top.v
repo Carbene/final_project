@@ -6,6 +6,7 @@ module sys_top(
 	input wire [7:0] command,
 	input wire btn_confirm,
 	input wire btn_exit,
+	input wire btn_countdown,  // 新增倒计时按钮
 	input wire uart_rxd,
 	output wire uart_txd,
 	output reg [7:0] ld2,
@@ -110,10 +111,15 @@ module sys_top(
 
 
 	// ??????????????��???????????
-	assign seg_data0 = 8'd0;
-	assign seg_data1 = 8'd0;
-	assign seg_sel0 = 8'd0;
-	assign seg_sel1 = 8'd0;
+	always @(*) begin
+		if (calculation_mode_en) begin
+			dk1_segments = dk1_segments_countdown;
+			dk_digit_select = dk_digit_select_countdown;
+		end else begin
+			dk1_segments = 8'd0;
+			dk_digit_select = 8'd0;
+		end
+	end
 
 	// --- led0??????? ---
 	always @(posedge clk or negedge rst_n) begin
@@ -380,6 +386,29 @@ module sys_top(
 	);
 
     // --- Print for calculate ---
+
+
+
+
+
+
+	//----countdown part 的实例化------
+	wire countdown_done;
+	wire countdown_feedback;
+	wire [7:0] dk1_segments_countdown;
+	// wire [7:0] dk2_segments_countdown;  // 移除，公用dk1_segments
+	wire [7:0] dk_digit_select_countdown;//只用左四位接给
+
+	countdown_controller u_countdown (
+		.clk(clk),
+		.rst_n(rst_n),
+		.start(),//需要一些error接给他
+		.done(countdown_done),    //自动结束
+		.btn_confirm(btn_countdown),
+		.feedback(countdown_feedback),       //立即响应
+		.dk1_segments(dk1_segments_countdown),
+		.dk_digit_select(dk_digit_select_countdown)
+	);
 
 	
 
