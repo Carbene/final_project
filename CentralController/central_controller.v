@@ -10,7 +10,11 @@ module Central_Controller (
 
     output reg display_mode_en,
 
-    output reg calculation_mode_en
+    output reg calculation_mode_en,
+
+    output reg conv_mode_en,
+
+    output reg settings_mode_en
 );
 
     localparam MODE_IDLE = 3'd00;
@@ -18,6 +22,8 @@ module Central_Controller (
     localparam MODE_GENERATE    = 3'd02;
     localparam MODE_DISPLAY     = 3'd03;
     localparam MODE_CALCULATION = 3'd04;
+    localparam MODE_CONV       = 3'd05;
+    localparam MODE_SETTINGS   = 3'd06;
     reg [2:0] current_mode, next_mode;
 
     always @(posedge clk or negedge rst_n) begin
@@ -35,26 +41,20 @@ module Central_Controller (
                         3'd2: next_mode = MODE_GENERATE;     // '2'
                         3'd3: next_mode = MODE_DISPLAY;      // '3'
                         3'd4: next_mode = MODE_CALCULATION;  // '4'
-                        3'd0: next_mode = MODE_IDLE;         // '0'
-                        3'd5: next_mode = MODE_IDLE;         // '5' reserved for settings mode
-                        3'd6: next_mode = MODE_IDLE;         // '6' reserved for future use
-                        3'd7: next_mode = MODE_IDLE;         // '7' reserved for
+                        3'd5: next_mode = MODE_CONV;         // '5'
+                        3'd6: next_mode = MODE_SETTINGS;     // '6'
+                        default: next_mode = MODE_IDLE;       // other keys
                     endcase
-                end else begin
+                end
+                else begin
                     next_mode = MODE_IDLE;
                 end
             end
             MODE_DATA_INPUT: begin
                 if (btn_confirm) begin
                     case(command)
-                        3'd1: next_mode = MODE_DATA_INPUT;   // '1'
-                        3'd2: next_mode = MODE_GENERATE;     // '2'
-                        3'd3: next_mode = MODE_DISPLAY;      // '3'
-                        3'd4: next_mode = MODE_CALCULATION;  // '4'
                         3'd0: next_mode = MODE_IDLE;         // '0'
-                        3'd5: next_mode = MODE_IDLE;         // '5' reserved for settings mode
-                        3'd6: next_mode = MODE_IDLE;         // '6' reserved for future use
-                        3'd7: next_mode = MODE_IDLE;         // '7' reserved for
+                        default: next_mode = MODE_DATA_INPUT;   // other keys
                     endcase
                 end
                 else next_mode = MODE_DATA_INPUT;
@@ -62,14 +62,8 @@ module Central_Controller (
             MODE_GENERATE: begin
                 if (btn_confirm) begin
                     case(command)
-                        3'd1: next_mode = MODE_DATA_INPUT;   // '1'
-                        3'd2: next_mode = MODE_GENERATE;     // '2'
-                        3'd3: next_mode = MODE_DISPLAY;      // '3'
-                        3'd4: next_mode = MODE_CALCULATION;  // '4'
-                        3'd0: next_mode = MODE_IDLE;         // '0'
-                        3'd5: next_mode = MODE_IDLE;         // '5' reserved for settings mode
-                        3'd6: next_mode = MODE_IDLE;         // '6' reserved for future use
-                        3'd7: next_mode = MODE_IDLE;         // '7' reserved for
+                    3'd0: next_mode = MODE_IDLE;         // '0'
+                    default: next_mode = MODE_GENERATE;     // other keys
                     endcase
                 end
                 else
@@ -78,14 +72,8 @@ module Central_Controller (
             MODE_DISPLAY: begin
                 if (btn_confirm) begin
                     case(command)
-                        3'd1: next_mode = MODE_DATA_INPUT;   // '1'
-                        3'd2: next_mode = MODE_GENERATE;     // '2'
-                        3'd3: next_mode = MODE_DISPLAY;      // '3'
-                        3'd4: next_mode = MODE_CALCULATION;  // '4'
-                        3'd0: next_mode = MODE_IDLE;         // '0'
-                        3'd5: next_mode = MODE_IDLE;         // '5' reserved for settings mode
-                        3'd6: next_mode = MODE_IDLE;         // '6' reserved for future use
-                        3'd7: next_mode = MODE_IDLE;         // '7' reserved for
+                    3'd0: next_mode = MODE_IDLE;         // '0'
+                    default: next_mode = MODE_DISPLAY;      // other keys
                     endcase
                 end
                 else 
@@ -95,17 +83,29 @@ module Central_Controller (
             MODE_CALCULATION: begin
                 if (btn_confirm) begin
                     case(command)
-                        3'd1: next_mode = MODE_DATA_INPUT;   // '1'
-                        3'd2: next_mode = MODE_GENERATE;     // '2'
-                        3'd3: next_mode = MODE_DISPLAY;      // '3'
-                        3'd4: next_mode = MODE_CALCULATION;  // '4'
                         3'd0: next_mode = MODE_IDLE;         // '0'
-                        3'd5: next_mode = MODE_IDLE;         // '5' reserved for settings mode
-                        3'd6: next_mode = MODE_IDLE;         // '6' reserved for future use
-                        3'd7: next_mode = MODE_IDLE;         // '7' reserved for
+                        default: next_mode = MODE_CALCULATION; // other keys
                     endcase
                 end
                 else next_mode = MODE_CALCULATION;
+            end
+            MODE_CONV: begin
+                if (btn_confirm) begin
+                    case(command)
+                        3'd0: next_mode = MODE_IDLE;         // '0'
+                        default: next_mode = MODE_CONV;       // other keys
+                    endcase
+                end
+                else next_mode = MODE_CONV;
+            end
+            MODE_SETTINGS: begin
+                if (btn_confirm) begin
+                    case(command)
+                        3'd0: next_mode = MODE_IDLE;         // '0'
+                        default: next_mode = MODE_SETTINGS;   // other keys
+                    endcase
+                end
+                else next_mode = MODE_SETTINGS;
             end
             default: next_mode = MODE_IDLE;
         endcase
@@ -115,11 +115,15 @@ module Central_Controller (
         generate_mode_en     = 1'b0;
         display_mode_en      = 1'b0;
         calculation_mode_en  = 1'b0;
+        conv_mode_en         = 1'b0;
+        settings_mode_en     = 1'b0;
         case(current_mode)
             MODE_DATA_INPUT:   data_input_mode_en   = 1'b1;
             MODE_GENERATE:     generate_mode_en     = 1'b1;
             MODE_DISPLAY:      display_mode_en      = 1'b1;
             MODE_CALCULATION:  calculation_mode_en  = 1'b1;
+            MODE_CONV:         conv_mode_en         = 1'b1;
+            MODE_SETTINGS:     settings_mode_en     = 1'b1;
             default: ; // do nothing
         endcase
     end
