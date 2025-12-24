@@ -47,7 +47,8 @@ module calculator_subsystem (
     // 模式能否退出
     output reg exitable
 );
-    //状态定义
+
+    //================== 状态定义 ==================
     localparam IDLE                 = 5'd0;
     localparam WAIT_OP_CODE         = 5'd1;   // 等待操作码输入
     localparam WAIT_INPUT_MODE      = 5'd2;   // 等待输入模式选择（手动/自动）
@@ -66,27 +67,33 @@ module calculator_subsystem (
     localparam DONE                 = 5'd15;  // 计算完成
     localparam ERROR                = 5'd16;  // 错误状态
     localparam EXIT                 = 5'd17;  // 退出状态
-    //运算模式定义
-    localparam OP_ADD         = 5'd1;
-    localparam OP_MUL         = 5'd2;
-    localparam OP_SCALAR      = 5'd4;
-    localparam OP_TRANSPOSE   = 5'd8;
-    // ALU操作码定义（与matrix_alu一致）
-    localparam ALU_OP_TRANSPOSE  = 3'd0;
-    localparam ALU_OP_ADD        = 3'd1;
-    localparam ALU_OP_SCALAR     = 3'd2;
-    localparam ALU_OP_MUL        = 3'd3;
-    //维度限制
+
+    //================== 运算模式定义 ==================
+    localparam OP_ADD       = 5'd1;    // 加法（双目）
+    localparam OP_MUL       = 5'd2;    // 矩阵乘法（双目）
+    localparam OP_SCALAR    = 5'd4;    // 标量乘法（单目）
+    localparam OP_TRANSPOSE = 5'd8;    // 转置（单目）
+
+    //================== ALU 操作码定义 ==================
+    localparam ALU_OP_TRANSPOSE = 3'd0;
+    localparam ALU_OP_ADD       = 3'd1;
+    localparam ALU_OP_SCALAR    = 3'd2;
+    localparam ALU_OP_MUL       = 3'd3;
+
+    //================== 维度限制常数 ==================
     localparam MIN_DIM = 3'd1;
     localparam MAX_DIM = 3'd5;
-    //状态寄存器
-    reg [4:0] state, next_state, retry_target;
-    // 模式寄存器
-    reg [4:0] op_code_reg;
-    reg [4:0] input_mode_reg;
-    reg timer_done_d1; // timer_done 的第一拍延迟
-    reg timer_done_d2; // timer_done 的第二拍延迟
-    wire timer_done_edge; // 检测到的边沿脉冲
+
+    //================== 状态寄存器 ==================
+    reg [4:0] state, next_state;
+    reg [4:0] retry_target;          // 错误重试的目标状态
+    reg [4:0] op_code_reg;           // 当前操作码
+    reg [4:0] input_mode_reg;        // 输入模式：1=手动，0=自动
+    
+    //================== 倒计时边沿检测 ==================
+    reg timer_done_d1;
+    reg timer_done_d2;
+    wire timer_done_edge;
     assign timer_done_edge = timer_done_d1 && !timer_done_d2;
 
     //================== 维度验证函数 ==================
@@ -134,9 +141,10 @@ module calculator_subsystem (
             is_valid_transpose = is_valid_dim(m_a) && is_valid_dim(n_a);
         end
     endfunction
-    //状态转移
+
+    //================== 第一段：状态寄存 ==================
     always @(posedge clk or negedge rst_n) begin
-        if (!rst_n) begin 
+        if (!rst_n) begin
             state <= IDLE;
             timer_done_d1 <= 1'b0;
             timer_done_d2 <= 1'b0;
@@ -146,7 +154,8 @@ module calculator_subsystem (
             timer_done_d2 <= timer_done_d1;
         end
     end
-    //次态逻辑
+
+    //================== 第二段：次态逻辑 ==================
     always @(*) begin
         next_state = state;
         
@@ -154,141 +163,156 @@ module calculator_subsystem (
         if (timer_done_edge) begin
             next_state = IDLE;
         end else begin
-        case (state)
-            IDLE:      
-                if (enable) 
-                next_state = WAIT_OP_CODE;
-            
-            WAIT_OP_CODE: begin
-                if (btn_confirm) 
-                    next_state = WAIT_INPUT_MODE;
-            end
-
-            WAIT_INPUT_MODE: begin
-                if (btn_confirm)
-                    next_state = OP1_SEL;
-            end
-            
-            OP1_SEL:   
-                next_state = OP1_WAIT;
-            
-            OP1_WAIT: begin
-                if (selector_done)  
-                    next_state = BRANCH_OP;
-                else if (selector_error) 
-                    next_state = ERROR;
-            end
-            
-            BRANCH_OP: begin
-                case (op_code_reg)
-                    OP_ADD, OP_MUL: begin
-                        // 双目运算，如果是手动模式则需要选择第二个操作数
-                        if (input_mode_reg)
-                            next_state = OP2_SEL;
-                        else
-                            next_state = VALIDATION;  // 自动模式直接验证
-                    end
-                    OP_SCALAR:           
-                        next_state = LOAD_SCALAR_CONFIRM;
-                    OP_TRANSPOSE: 
-                        next_state = VALIDATION;
-                    default:               
-                        next_state = IDLE;
-                endcase
-            end
-            
-            OP2_SEL:   
-                next_state = OP2_WAIT;
-            
-            OP2_WAIT: begin
-                if (selector_done)  
-                    next_state = VALIDATION;
-                else if (selector_error) 
-                    next_state = ERROR;
-            end
-            
-            LOAD_SCALAR_CONFIRM: 
-                if (btn_confirm) 
-                    next_state = LOAD_SCALAR;
-            
-            LOAD_SCALAR: 
-                next_state = VALIDATION;
-            
-            VALIDATION: begin
-                case (op_code_reg)
-                    OP_ADD: 
-                        if (is_valid_add(m_a, n_a, m_b, n_b)) 
-                            next_state = EXECUTE;
-                        else 
-                            next_state = ERROR;
-                    OP_MUL:
-                        if (is_valid_mul(m_a, n_a, m_b, n_b)) 
-                            next_state = EXECUTE;
-                        else 
-                            next_state = ERROR;
-                    OP_SCALAR:
-                        if (is_valid_scalar(m_a, n_a, scalar))
-                            next_state = EXECUTE;
-                        else
-                            next_state = ERROR;
-                    OP_TRANSPOSE:
-                        if (is_valid_transpose(m_a, n_a))
-                            next_state = EXECUTE;
-                        else
-                            next_state = ERROR;
-                    default: 
-                        next_state = EXECUTE;
-                endcase
-            end
-            
-            ERROR: 
-                next_state = retry_target;
-            
-            EXECUTE:    
-                next_state = EXECUTE_WAIT;
-            
-            EXECUTE_WAIT: begin
-                if (done_calculation) 
-                    next_state = PRINT_RESULT;
-            end
-            
-            PRINT_RESULT: begin
-                if(!matrix_result_display_busy) 
-                    next_state = PRINT_RESULT_WAIT;
-            end
-            
-            PRINT_RESULT_WAIT: begin
-                if (matrix_result_display_done) begin
-                    next_state = DONE;
+            case (state)
+                IDLE: begin
+                    if (enable)
+                        next_state = WAIT_OP_CODE;
                 end
-            end
-            
-            DONE:
-                next_state = EXIT;
-            
-            EXIT:
-                if(!enable) 
+
+                WAIT_OP_CODE: begin
+                    if (btn_confirm)
+                        next_state = WAIT_INPUT_MODE;
+                end
+
+                WAIT_INPUT_MODE: begin
+                    if (btn_confirm)
+                        next_state = OP1_SEL;
+                end
+
+                OP1_SEL:
+                    next_state = OP1_WAIT;
+
+                OP1_WAIT: begin
+                    if (selector_done)
+                        next_state = BRANCH_OP;
+                    else if (selector_error)
+                        next_state = ERROR;
+                end
+
+                BRANCH_OP: begin
+                    // 根据操作类型分支
+                    case (op_code_reg)
+                        OP_ADD, OP_MUL: begin
+                            // 双目运算，如果是手动模式则需要选择第二个操作数
+                            if (input_mode_reg)
+                                next_state = OP2_SEL;
+                            else
+                                next_state = VALIDATION;  // 自动模式直接验证
+                        end
+                        OP_SCALAR: begin
+                            // 标量乘法，需要输入标量
+                            next_state = LOAD_SCALAR_CONFIRM;
+                        end
+                        OP_TRANSPOSE: begin
+                            // 转置操作，直接验证
+                            next_state = VALIDATION;
+                        end
+                        default:
+                            next_state = IDLE;
+                    endcase
+                end
+
+                OP2_SEL:
+                    next_state = OP2_WAIT;
+
+                OP2_WAIT: begin
+                    if (selector_done)
+                        next_state = VALIDATION;
+                    else if (selector_error)
+                        next_state = ERROR;
+                end
+
+                LOAD_SCALAR_CONFIRM: begin
+                    if (btn_confirm)
+                        next_state = LOAD_SCALAR;
+                end
+
+                LOAD_SCALAR:
+                    next_state = VALIDATION;
+
+                VALIDATION: begin
+                    // 进行维度验证
+                    case (op_code_reg)
+                        OP_ADD: begin
+                            if (is_valid_add(m_a, n_a, m_b, n_b))
+                                next_state = EXECUTE;
+                            else
+                                next_state = ERROR;
+                        end
+                        OP_MUL: begin
+                            if (is_valid_mul(m_a, n_a, m_b, n_b))
+                                next_state = EXECUTE;
+                            else
+                                next_state = ERROR;
+                        end
+                        OP_SCALAR: begin
+                            if (is_valid_scalar(m_a, n_a, scalar))
+                                next_state = EXECUTE;
+                            else
+                                next_state = ERROR;
+                        end
+                        OP_TRANSPOSE: begin
+                            if (is_valid_transpose(m_a, n_a))
+                                next_state = EXECUTE;
+                            else
+                                next_state = ERROR;
+                        end
+                        default:
+                            next_state = IDLE;
+                    endcase
+                end
+
+                EXECUTE:
+                    next_state = EXECUTE_WAIT;
+
+                EXECUTE_WAIT: begin
+                    if (done_calculation)
+                        next_state = PRINT_RESULT;
+                end
+
+                PRINT_RESULT: begin
+                    if (!matrix_result_display_busy)
+                        next_state = PRINT_RESULT_WAIT;
+                end
+
+                PRINT_RESULT_WAIT: begin
+                    if (matrix_result_display_done)
+                        next_state = DONE;
+                end
+
+                DONE:
+                    next_state = EXIT;
+
+                ERROR:
+                    next_state = retry_target;
+
+                EXIT: begin
+                    if (!enable)
+                        next_state = IDLE;
+                    else if (btn_restart)
+                        next_state = OP1_SEL;
+                end
+
+                default:
                     next_state = IDLE;
-                else if (btn_restart) 
-                    next_state = OP1_SEL;
-            
-            default:    
-                next_state = IDLE;
-        endcase
+            endcase
         end
     end
-    //输出逻辑与状态操作
+
+    //================== 第三段：时序输出与数据路径 ==================
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             selector_en <= 1'b0;
             error_calculator <= 1'b0;
-            retry_target <= OP1_SEL;
+            start_calculation <= 1'b0;
             matrix_result_display_start <= 1'b0;
+            exitable <= 1'b0;
+            
+            op_code <= ALU_OP_TRANSPOSE;
             op_code_reg <= 5'd0;
             input_mode_reg <= 1'b0;
-            exitable <= 1'b0;
-            op_code <= ALU_OP_TRANSPOSE;
-            start_calculation <= 1'b0;
+            retry_target <= OP1_SEL;
+            
             m_a <= 3'd0;
             n_a <= 3'd0;
             matrix_a_flat <= 200'd0;
@@ -296,20 +320,20 @@ module calculator_subsystem (
             n_b <= 3'd0;
             matrix_b_flat <= 200'd0;
             scalar <= 8'd0;
+            
             result_m_display <= 3'd0;
             result_n_display <= 3'd0;
             result_display <= 400'd0;
         end else begin
-            // 默认低电平脉冲控制
+            // 默认清除脉冲信号
             selector_en <= 1'b0;
             error_calculator <= 1'b0;
+            start_calculation <= 1'b0;
             matrix_result_display_start <= 1'b0;
             exitable <= 1'b0;
-            start_calculation <= 1'b0;
-            
+
             case (state)
                 IDLE: begin
-                    matrix_result_display_start <= 1'b0;
                     exitable <= 1'b1;
                     op_code_reg <= 5'd0;
                     input_mode_reg <= 1'b0;
@@ -321,7 +345,7 @@ module calculator_subsystem (
                     matrix_b_flat <= 200'd0;
                     scalar <= 8'd0;
                 end
-                
+
                 WAIT_OP_CODE: begin
                     // 等待通过开关/按钮输入操作码
                     if (btn_confirm) begin
@@ -336,62 +360,59 @@ module calculator_subsystem (
                 end
 
                 WAIT_INPUT_MODE: begin
-                    // 等待输入模式选择：1=手动，0=自动
+                    // 等待输入模式选择：1=手动，0=自动（使用某个开关位判断）
                     if (btn_confirm) begin
                         input_mode_reg <= sw[5];  // 假设用开关5来选择手动/自动
                     end
                 end
-                
-                OP1_SEL: begin 
+
+                OP1_SEL: begin
                     selector_en <= 1'b1;
                     retry_target <= OP1_SEL;
                 end
-                
+
                 OP1_WAIT: begin
                     if (selector_done) begin
-                        // 锁存A操作数
+                        // 成功获得第一个操作数
                         matrix_a_flat <= matrix;
                         m_a <= dim_m;
                         n_a <= dim_n;
-                        error_calculator <= 1'b0;
                     end
                 end
-                
+
                 BRANCH_OP: begin
                     // 分支逻辑已在次态中处理
                 end
-                
+
                 OP2_SEL: begin
                     selector_en <= 1'b1;
                     retry_target <= OP2_SEL;
                 end
-                
+
                 OP2_WAIT: begin
                     if (selector_done) begin
-                        // 锁存B操作数
+                        // 成功获得第二个操作数
                         matrix_b_flat <= matrix;
                         m_b <= dim_m;
                         n_b <= dim_n;
-                        error_calculator <= 1'b0;
                     end
                 end
-                
+
                 LOAD_SCALAR_CONFIRM: begin
                     // 等待用户确认标量值
                     // 标量值通过开关输入：sw[3:0]
                 end
-                
+
                 LOAD_SCALAR: begin
-                    // 使用开关作为标量输入源（扩展至8位）
-                    scalar <= {4'b0000, sw[3:0]};
+                    scalar <= {4'b0000, sw[3:0]};  // 标量值扩展至8位
                 end
-                
+
                 VALIDATION: begin
                     // 维度验证在组合逻辑中进行，这里无需额外处理
                 end
-                
+
                 EXECUTE: begin
-                    // 配置ALU操作类型并启动
+                    // 配置 ALU 操作码并启动计算
                     case (op_code_reg)
                         OP_ADD:       op_code <= ALU_OP_ADD;
                         OP_MUL:       op_code <= ALU_OP_MUL;
@@ -401,31 +422,39 @@ module calculator_subsystem (
                     endcase
                     start_calculation <= 1'b1;
                 end
-                
+
                 EXECUTE_WAIT: begin
-                    // 等待计算完成
+                    // 等待计算完成，无需额外操作
                 end
-                
+
                 PRINT_RESULT: begin
                     matrix_result_display_start <= 1'b1;
                     result_m_display <= result_m;
                     result_n_display <= result_n;
                     result_display <= result_flat;
                 end
-                
+
                 PRINT_RESULT_WAIT: begin
-                    // 等待显示完成
+                    // 等待显示完成，无需额外操作
                 end
-                
-                DONE: 
+
+                DONE: begin
                     exitable <= 1'b1;
-                
+                end
+
                 ERROR: begin
                     error_calculator <= 1'b1;
+                    // 错误会触发倒计时，倒计时结束时会回到 IDLE
+                    // 或者通过 next_state = retry_target 重新尝试
                 end
-                
-                EXIT: 
+
+                EXIT: begin
                     exitable <= 1'b1;
+                end
+
+                default: begin
+                    // 默认状态处理
+                end
             endcase
         end
     end
