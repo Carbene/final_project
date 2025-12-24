@@ -12,8 +12,8 @@ module matrix_printer #(
     input  wire                     clk,
     input  wire                     rst_n,
     input  wire                     start,
-    input  wire [3:0]               dimM,        // rows (<= 5 typically)
-    input  wire [3:0]               dimN,        // cols (<= 5 typically)
+    input  wire [2:0]               dimM,        // rows (<= 5) - 修正为3位
+    input  wire [2:0]               dimN,        // cols (<= 5) - 修正为3位
     input  wire [PACKED_WIDTH-1:0]  matrix_flat, // row-major: element k at [k*8 +: 8]
     input  wire                     use_crlf,    // 0: \n, 1: \r\n at row ends
     input  wire                     tx_busy,
@@ -26,11 +26,11 @@ module matrix_printer #(
 
     reg  [2:0]              state, next_state;
     reg  [ADDR_WIDTH-1:0]   idx;
-    reg  [3:0]              col;
+    reg  [2:0]              col;
     reg  [ELEM_WIDTH-1:0]   val_reg;
     reg  [2:0]              send_phase;
     reg                     send_done;
-    reg                     tx_start_hold; // keep tx_start asserted until uart_tx observes it
+    reg                     wait_tx_done; // 等待uart_tx完成当前字节
 
     wire [ADDR_WIDTH-1:0]   total_ops;
     wire                    col_last;
@@ -46,7 +46,7 @@ module matrix_printer #(
     assign total_ops = dimM * dimN;
 
     // true when current element is the last in the row
-    assign col_last = (col + 1'b1 == dimN);
+    assign col_last = (col + 1'b1 == dimN[2:0]);
 
     // Elements guaranteed < 100 (no hundreds). Use generic div-by-10 for tens.
     assign digit_count = (val_reg >= 8'd10) ? 2'd2 : 2'd1;
@@ -98,12 +98,12 @@ module matrix_printer #(
         if (!rst_n) begin
             state         <= IDLE;
             idx           <= {ADDR_WIDTH{1'b0}};
-            col           <= 4'd0;
+            col           <= 3'd0;
             val_reg       <= {ELEM_WIDTH{1'b0}};
             send_phase    <= 3'd0;
             send_done     <= 1'b0;
             tx_start      <= 1'b0;
-            tx_start_hold <= 1'b0;
+            wait_tx_done  <= 1'b0;
             tx_data       <= 8'h00;
             done          <= 1'b0;
         end else begin
@@ -115,11 +115,11 @@ module matrix_printer #(
             case (state)
                 IDLE: begin
                     idx           <= {ADDR_WIDTH{1'b0}};
-                    col           <= 4'd0;
+                    col           <= 3'd0;
                     send_phase    <= 3'd0;
                     send_done     <= 1'b0;
                     tx_start      <= 1'b0;
-                    tx_start_hold <= 1'b0;
+                    wait_tx_done  <= 1'b0;
                 end
 
                 LOAD: begin
@@ -127,7 +127,7 @@ module matrix_printer #(
                     send_phase    <= 3'd0;
                     send_done     <= 1'b0;
                     tx_start      <= 1'b0;
-                    tx_start_hold <= 1'b0;
+                    wait_tx_done  <= 1'b0;
                 end
 
                 FORMAT: begin
@@ -136,19 +136,22 @@ module matrix_printer #(
                 end
 
                 SEND: begin
-                    if (!tx_busy && !send_done && !tx_start_hold) begin
-                        tx_data       <= send_byte;
-                        tx_start      <= 1'b1;
-                        tx_start_hold <= 1'b1;
+                    if (!wait_tx_done && !tx_busy && !send_done) begin
+                        // 发送当前字节
+                        tx_data      <= send_byte;
+                        tx_start     <= 1'b1;
+                        wait_tx_done <= 1'b1;
+                    end else if (wait_tx_done && tx_busy) begin
+                        // uart_tx已响应，清除start
+                        tx_start <= 1'b0;
+                    end else if (wait_tx_done && !tx_busy && tx_start == 1'b0) begin
+                        // uart_tx完成发送（tx_busy回落），准备下一个字节
+                        wait_tx_done <= 1'b0;
                         if (send_phase == send_phase_max) begin
                             send_done <= 1'b1;
                         end else begin
                             send_phase <= send_phase + 1'b1;
                         end
-                    end else if (tx_busy) begin
-                        // uart_tx accepted the pulse; drop start for next byte
-                        tx_start      <= 1'b0;
-                        tx_start_hold <= 1'b0;
                     end
                 end
 
@@ -156,7 +159,7 @@ module matrix_printer #(
                     if (idx + 1'b1 < total_ops) begin
                         idx <= idx + 1'b1;
                         if (col_last) begin
-                            col <= 4'd0;
+                            col <= 3'd0;
                         end else begin
                             col <= col + 1'b1;
                         end

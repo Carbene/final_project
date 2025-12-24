@@ -5,8 +5,9 @@ module calculator_subsystem (
     // 控制信号
     input  enable,           
     input  btn_confirm,  
+    input btn_input,
     input btn_restart,   
-    input  [4:0]  sw,
+    input  [7:0]  sw,
     // 选择器模块接口
     output reg selector_en,
     input  selector_done,
