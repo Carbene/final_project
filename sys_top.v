@@ -371,9 +371,7 @@ module sys_top(
 	.info_table(info_table),
 	.cnt(total_count),
 	.busy(print_busy_table),
-	.done(print_done_table),
-	.dout(),
-	.dout_valid()
+	.done(print_done_table)
 	);
 
     // --- Print for calculate ---
