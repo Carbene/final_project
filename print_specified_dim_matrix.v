@@ -46,7 +46,8 @@ module print_specified_dim_matrix(
     reg [3:0]  state, next_state;
     reg [1:0]  cnt_for_dim;      // 该规格矩阵数量（0/1/2）
     reg [1:0]  remain_to_print;  // 剩余需要打印的个数
-    reg [7:0]  tx_buf [0:2];     // 仅发送 "<cnt>\r\n"
+    reg [1:0]  current_index;    // 当前矩阵索引（1-based for display）
+    reg [7:0]  tx_buf [0:2];     // 发送缓冲 "<cnt/index>\r\n"
     reg [2:0]  tx_len;           // 实际要发的字节数
     reg [2:0]  tx_idx;           // 当前发送到第几个字节
     reg        tx_in_progress;   // 单字节发送握手
@@ -54,20 +55,23 @@ module print_specified_dim_matrix(
 
     // 提取计数的位置: place = (m-1)*5 + (n-1)
     wire [4:0] place = (dim_m - 3'd1) * 5 + (dim_n - 3'd1);
-    wire [1:0] table_cnt = info_table[49 - (place << 1) -: 2];
+    // 与 print_table 保持一致的低位在前打包方式
+    wire [1:0] table_cnt = info_table[(place << 1) +: 2];
 
     // 状态定义（两段/三段式）
     localparam S_IDLE        = 4'd0;
     localparam S_CHECK       = 4'd1;
     localparam S_PREP_TXCNT  = 4'd2;
     localparam S_TXCNT       = 4'd3;
-    localparam S_PREP_READ   = 4'd4;
-    localparam S_READ_PULSE  = 4'd5;
-    localparam S_READ_WAIT   = 4'd6;
-    localparam S_START_PRINT = 4'd7;
-    localparam S_WAIT_PRINT  = 4'd8;
-    localparam S_DONE        = 4'd9;
-    localparam S_ERROR       = 4'd10;
+    localparam S_PREP_INDEX  = 4'd4;  // 准备索引
+    localparam S_TX_INDEX    = 4'd5;  // 发送索引
+    localparam S_PREP_READ   = 4'd6;
+    localparam S_READ_PULSE  = 4'd7;
+    localparam S_READ_WAIT   = 4'd8;
+    localparam S_START_PRINT = 4'd9;
+    localparam S_WAIT_PRINT  = 4'd10;
+    localparam S_DONE        = 4'd11;
+    localparam S_ERROR       = 4'd12;
     // 1) 状态寄存
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
@@ -85,14 +89,16 @@ module print_specified_dim_matrix(
             S_CHECK:       if (table_cnt == 2'd0)               next_state = S_ERROR;
                            else                                 next_state = S_PREP_TXCNT;
             S_PREP_TXCNT:                                         next_state = S_TXCNT;
-            S_TXCNT:       if (tx_idx == tx_len)                next_state = S_PREP_READ;
+            S_TXCNT:       if (tx_idx == tx_len)                next_state = S_PREP_INDEX;
+            S_PREP_INDEX:                                         next_state = S_TX_INDEX;
+            S_TX_INDEX:    if (tx_idx == tx_len)                next_state = S_PREP_READ;
             S_PREP_READ:                                          next_state = S_READ_PULSE;
             S_READ_PULSE:                                         next_state = S_READ_WAIT;
             S_READ_WAIT:   if (rd_ready)                        next_state = S_START_PRINT;
             S_START_PRINT:                                        next_state = S_WAIT_PRINT;
             S_WAIT_PRINT:  if (matrix_printer_done && remain_to_print <= 1)
                                                                 next_state = S_DONE;
-                           else if (matrix_printer_done)        next_state = S_PREP_READ;
+                           else if (matrix_printer_done)        next_state = S_PREP_INDEX;
             S_DONE:                                               next_state = S_IDLE;
             S_ERROR:                                              next_state = S_IDLE;
             default:                                              next_state = S_IDLE;
@@ -107,6 +113,7 @@ module print_specified_dim_matrix(
             error <= 1'b0;
             cnt_for_dim <= 2'd0;
             remain_to_print <= 2'd0;
+            current_index <= 2'd0;
             read_en <= 1'b0;
             dimM <= 3'd0;
             dimN <= 3'd0;
@@ -140,6 +147,7 @@ module print_specified_dim_matrix(
                     busy <= 1'b1;
                     cnt_for_dim <= table_cnt;
                     remain_to_print <= table_cnt;
+                    mat_index <= 2'd0;  // 初始化存储索引
                 end
 
                 // 构造 "<cnt>\r\n"，并重置发送索引
@@ -164,6 +172,35 @@ module print_specified_dim_matrix(
                             tx_in_progress <= 1'b1;     // 标记进入传输中
                         end
                         // 检测 busy 从 1 -> 0 的下降沿，认为该字节完成
+                        if (tx_in_progress && uart_tx_busy_d && !uart_tx_busy) begin
+                            tx_in_progress <= 1'b0;
+                            tx_idx <= tx_idx + 1'b1;
+                        end
+                    end
+                end
+
+                // 构造 "<index>\r\n"，准备发送当前矩阵索引
+                S_PREP_INDEX: begin
+                    busy <= 1'b1;
+                    // 显示实际存储的mat_index（1-based）
+                    current_index <= mat_index + 1'b1;
+                    tx_buf[0] <= ASCII_0 + {6'd0, mat_index} + 8'd1;  // mat_index转1-based
+                    tx_buf[1] <= ASCII_CR;
+                    tx_buf[2] <= ASCII_LF;
+                    tx_len    <= 3'd3;
+                    tx_idx    <= 3'd0;
+                    tx_in_progress <= 1'b0;
+                end
+
+                // 逐字节发送索引
+                S_TX_INDEX: begin
+                    busy <= 1'b1;
+                    if (tx_idx < tx_len) begin
+                        if (!tx_in_progress && !uart_tx_busy) begin
+                            uart_tx_data   <= tx_buf[tx_idx];
+                            uart_tx_en     <= 1'b1;
+                            tx_in_progress <= 1'b1;
+                        end
                         if (tx_in_progress && uart_tx_busy_d && !uart_tx_busy) begin
                             tx_in_progress <= 1'b0;
                             tx_idx <= tx_idx + 1'b1;
@@ -197,10 +234,11 @@ module print_specified_dim_matrix(
                     if (matrix_printer_done) begin
                         if (remain_to_print > 0)
                             remain_to_print <= remain_to_print - 1'b1;
-                        if (remain_to_print > 1)
-                            mat_index <= mat_index + 1'b1; // 下一张
-                        else
-                            mat_index <= 2'd0; // 复位
+                        if (remain_to_print > 1) begin
+                            mat_index <= mat_index + 1'b1;     // 下一张
+                        end else begin
+                            mat_index <= 2'd0;     // 复位
+                        end
                     end
                 end
 

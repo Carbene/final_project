@@ -38,6 +38,9 @@ module print_table(
     reg wait_tx_done; // 等待 uart_tx 完成当前字节
     reg send_done;    // 当前字符发送完成
     reg header_done; 
+    // 发送字符间的冷却计数（可选）
+    parameter integer COOL_TIME = 16'd1000; // 根据时钟与UART速率可适当调整
+    reg [15:0] cool_cnt;
 
     // 计算当前 2-bit 在 info_table 中的位置
     wire [5:0] bit_pos = cell_idx << 1;
