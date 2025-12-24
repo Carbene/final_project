@@ -71,7 +71,7 @@ module sys_top(
 	wire generate_mode_exitable = 1'b1;
 	wire display_mode_exitable = 1'b1;
 	wire calculation_mode_exitable = 1'b1;//?
-    // mode指示�?
+    // mode指示�?
     wire [7:0] led_wire;
     assign led_wire={4'b0,data_input_mode_en,generate_mode_en,display_mode_en,calculation_mode_en};
     always @(posedge clk or negedge rst_n) begin
@@ -86,7 +86,7 @@ module sys_top(
 	Central_Controller u_ctrl(
 		.clk(clk),
 		.rst_n(rst_n),
-		.command(command[2:0]), // 只用�?3位，后续可扩�?
+		.command(command[2:0]), // 只用�?3位，后续可扩�?
 		.btn_confirm(btn_confirm_db),
 		.btn_exit(btn_exit_db),
 		.input_mode_exitable(input_mode_exitable),
@@ -99,14 +99,14 @@ module sys_top(
 		.calculation_mode_en(calculation_mode_en)
 	);
 
-	// --- Ld2/数码管输�? ---
+	// --- Ld2/数码管输�? ---
 	reg led0_on;
-	reg [24:0] led0_cnt; // 0.5秒计数，假设50MHz时钟�?0.5s=25_000_000
-	reg led1_on; // gen_done指示�?
+	reg [24:0] led0_cnt; // 0.5秒计数，假设50MHz时钟�?0.5s=25_000_000
+	reg led1_on; // gen_done指示�?
 	reg [24:0] led1_cnt;
-	reg led2_on; // gen_error指示�?
+	reg led2_on; // gen_error指示�?
 	reg [24:0] led2_cnt;
-	reg led3_on; // gen_valid指示�?
+	reg led3_on; // gen_valid指示�?
 	reg [24:0] led3_cnt;
 	wire [7:0] ld2_wire;
 	assign ld2_wire = {7'd0, led0_on};
@@ -190,7 +190,7 @@ module sys_top(
         if (!rst_n) begin
             ld2 <= 8'd0;
         end else begin
-            ld2[0] <= ld2_wire[0]; // 写存储指�?
+            ld2[0] <= ld2_wire[0]; // 写存储指�?
             ld2[1] <= led1_on;     // gen_done延长显示
             ld2[2] <= led2_on;     // gen_error延长显示
             ld2[3] <= led3_on;     // gen_valid延长显示
@@ -219,7 +219,7 @@ module sys_top(
 		.parse_error(parse_error)
 	);
 	
-	// --- Matrix Store (200�?) ---
+	// --- Matrix Store (200�?) ---
     //信号变换
 	reg store_write_en;
 	reg [2:0] store_mat_col;
@@ -231,12 +231,12 @@ module sys_top(
 			store_mat_col <= 3'd0;
 			store_mat_row <= 3'd0;
 			store_data_flow <= 200'd0;
-		end else if (parse_done) begin		//输入模块的存�?
+		end else if (parse_done) begin		//输入模块的存�?
 			store_write_en <= 1'b1;
 			store_mat_col <= parsed_m;
 			store_mat_row <= parsed_n;
 			store_data_flow <= parsed_matrix_flat;
-		end else if (gen_valid) begin		//生成模块的存�?
+		end else if (gen_valid) begin		//生成模块的存�?
 			store_write_en <= 1'b1;
 			store_mat_col <= gen_m;
 			store_mat_row <= gen_n;
@@ -267,10 +267,10 @@ module sys_top(
 		.rd_data_flow(),
 		.rd_ready(),
 		.err_rd(),
-		.total_count(),
-		.info_table()
+		.total_count(total_count),
+		.info_table(info_table)
 	);
-	// generator_operate模块的输�?
+	// generator_operate模块的输�?
 	wire [7:0] uart_data_gen;
 	assign uart_data_gen = uart_rx_data;
 	wire [199:0] gen_flow;
@@ -303,7 +303,7 @@ module sys_top(
 	wire [7:0] uart_tx_data_gen;
 	wire print_done_gen;
 
-	// 根据模式选择UART TX信号�?
+	// 根据模式选择UART TX信号�?
 	always @(*) begin
 		if (data_input_mode_en) begin
 			uart_tx_en = uart_tx_en_parse;

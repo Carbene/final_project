@@ -2,9 +2,7 @@ module print_specified_dim_matrix(
     input wire clk,
     input wire rst_n,
     input wire start,
-    //UART RX 接口
-    input wire uart_rx_done,
-    input wire [7:0] uart_rx_data,
+    input
     // UART TX 接口
     input wire uart_tx_busy,
     output reg uart_tx_en,
