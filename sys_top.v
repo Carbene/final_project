@@ -287,13 +287,15 @@ module sys_top(
 			store_write_en <= 1'b0;
 			if (parse_done & ~parse_done_d) begin
 				store_write_en <= 1'b1;
-				store_mat_col <= parsed_m;
-				store_mat_row <= parsed_n;
+				// m=row, n=col: write as (row=m, col=n)
+				store_mat_row <= parsed_m;
+				store_mat_col <= parsed_n;
 				store_data_flow <= parsed_matrix_flat;
 			end else if (gen_valid & ~gen_valid_d) begin
 				store_write_en <= 1'b1;
-				store_mat_col <= gen_m;
-				store_mat_row <= gen_n;
+				// m=row, n=col: write as (row=m, col=n)
+				store_mat_row <= gen_m;
+				store_mat_col <= gen_n;
 				store_data_flow <= gen_flow;
 			end
 		end
@@ -428,8 +430,8 @@ module sys_top(
 				uart_tx_en   = conv_printer_tx_start;
 				uart_tx_data = conv_printer_tx_data;
 			end else begin
-				// conv模块的控制信息输出
-				uart_tx_en   = conv_uart_tx_valid;
+				// conv模块的控制信息输出（周期数）
+				uart_tx_en   = conv_uart_tx_en;
 				uart_tx_data = conv_uart_tx_data;
 			end
 		end else begin
@@ -588,8 +590,9 @@ module sys_top(
 		// ���ӵ�matrix_storage
 		.info_table(info_table),              // ����: ������Ϣ�� (���ڲ�ѯ)
 		.read_en(spec_read_en),               // ���?: ��ʹ��
-		.dimM(spec_rd_col),                   // ���?: �ȡľ��������?
-		.dimN(spec_rd_row),                   // ���?: �ȡľ��������?
+		// m=row, n=col: map to storage rd_row, rd_col respectively
+		.dimM(spec_rd_row),                   // dimM (row=m) -> rd_row
+		.dimN(spec_rd_col),                   // dimN (col=n) -> rd_col
 		.mat_index(spec_rd_mat_index),        // ���?: �ȡľ��������?
 		.rd_ready(store_rd_ready),            // ����: ��ȡ����
 		.rd_data_flow(store_rd_data_flow),    // ����: ��ȡ�ľ�������
@@ -646,9 +649,8 @@ module sys_top(
 	wire conv_busy;
 	wire conv_print_enable;
 	wire conv_print_done;
-	wire conv_uart_tx_valid;
+	wire conv_uart_tx_en;
 	wire [7:0] conv_uart_tx_data;   // 修复：从1位改为8位
-	wire conv_uart_tx_ready;
 	wire [1279:0] conv_matrix_flat;
 	
 	convolution_engine u_convolution_engine (
@@ -662,9 +664,9 @@ module sys_top(
 	.print_enable(conv_print_enable),
 	.matrix_data(conv_matrix_flat),
 	.print_done(conv_print_done),
-	.uart_tx_valid(conv_uart_tx_valid),
+	.uart_tx_en(conv_uart_tx_en),
 	.uart_tx_data(conv_uart_tx_data),
-	.uart_tx_ready(~uart_tx_busy & conv_mode_en)  // 修复：只在卷积模式下响应UART TX
+	.uart_tx_busy(uart_tx_busy & conv_mode_en)
 	);
 	wire conv_printer_tx_start;
 	wire [7:0] conv_printer_tx_data;  // 修复：从1位改为8位

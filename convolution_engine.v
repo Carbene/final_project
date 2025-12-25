@@ -16,30 +16,42 @@ module convolution_engine (
     output reg [1279:0] matrix_data, 
     input print_done,
     
-    // UART发送接口
-    output reg uart_tx_valid,
-    output reg [7:0] uart_tx_data,
-    input uart_tx_ready
+    // UART发送接口（周期数）
+    output wire uart_tx_en,
+    output wire [7:0] uart_tx_data,
+    input uart_tx_busy
 );
+
+    // =========================================================
+    // 简化设计：两阶段方案（正确性优先）
+    // 阶段1 (LOAD_IMAGE): 读取全部120个像素到本地存储
+    // 阶段2 (CALC_CONV):  逐个计算80个卷积结果
+    // =========================================================
 
     // --- 状态机 ---
     localparam IDLE           = 3'd0;
     localparam RECEIVE_KERNEL = 3'd1;
-    localparam COMPUTE        = 3'd2; // 流水线计算状态
-    localparam PRINT_RESULT   = 3'd3;
-    localparam SEND_CYCLES    = 3'd4;
-    localparam DONE_STATE     = 3'd5;
+    localparam LOAD_IMAGE     = 3'd2;  // 加载图像数据
+    localparam CALC_CONV      = 3'd3;  // 计算卷积
+    localparam PRINT_RESULT   = 3'd4;
+    localparam SEND_CYCLES    = 3'd5;
+    localparam DONE_STATE     = 3'd6;
     
     reg [2:0] state, next_state;
 
-    // --- 卷积核存储 ---
+    // --- 卷积核存储 (3x3 = 9个元素) ---
     reg [3:0] kernel [0:8];
     reg [3:0] kernel_count;
 
+    // --- 图像数据本地存储 (10x12 = 120个元素) ---
+    reg [3:0] image [0:119];
+    
     // --- ROM 控制接口 ---
-    reg [3:0] rom_x, rom_x_d1;
-    reg [3:0] rom_y, rom_y_d1;
+    reg [6:0] load_addr;         // 0-119: 加载地址计数
+    reg [3:0] load_row, load_col; // 行列计数器（避免除法）
+    reg [3:0] rom_x, rom_y;
     wire [3:0] rom_data;
+    reg [1:0] load_phase;        // 0=发地址, 1=等ROM采样, 2=收数据
 
     input_image_rom rom_inst (
         .clk(clk),
@@ -48,41 +60,16 @@ module convolution_engine (
         .data_out(rom_data)
     );
 
-    // --- 行缓存（3行缓存实现滑动窗口）---
-    // 存储最近3行数据，每行12个像素
-    reg [3:0] line_buf_0 [0:11];  // 最旧的行
-    reg [3:0] line_buf_1 [0:11];  // 中间行
-    reg [3:0] line_buf_2 [0:11];  // 最新的行（当前正在填充）
+    // --- 卷积计算控制 ---
+    reg [6:0] calc_idx;          // 0-79: 当前计算的输出索引
+    reg [3:0] out_row, out_col;  // 输出位置 (0-7, 0-9)
     
-    // --- 3x3滑动窗口寄存器 ---
-    // 布局：win[0] win[1] win[2]   对应输入矩阵的
-    //       win[3] win[4] win[5]   [row-2:row, col-2:col]
-    //       win[6] win[7] win[8]
-    reg [3:0] win [0:8];
-
-    // --- 计算控制信号 ---
-    reg [6:0] pixel_cnt;        // 0-119: 已读取的像素计数
-    reg [3:0] current_row;      // 0-9: 当前读取的行
-    reg [3:0] current_col;      // 0-11: 当前读取的列
-    reg [6:0] output_cnt;       // 0-79: 已输出的卷积结果计数
+    // --- 结果存储 ---
     reg [15:0] conv_result [0:79];
-    reg [15:0] cycle_counter;
-
-    // --- 并行MAC计算树（组合逻辑，单周期完成）---
-    wire [11:0] mul [0:8];
-    generate
-        genvar m;
-        for (m = 0; m < 9; m = m + 1) begin : mul_gen
-            assign mul[m] = win[m] * kernel[m];
-        end
-    endgenerate
     
-    // 三级加法树：第一级(3组)→第二级(2组)→第三级(1组)
-    wire [12:0] add_stage1_0 = mul[0] + mul[1] + mul[2];
-    wire [12:0] add_stage1_1 = mul[3] + mul[4] + mul[5];
-    wire [12:0] add_stage1_2 = mul[6] + mul[7] + mul[8];
-    wire [14:0] add_stage2_0 = add_stage1_0 + add_stage1_1;
-    wire [15:0] conv_output  = add_stage2_0 + add_stage1_2;
+    // --- 周期计数 ---
+    reg [15:0] cycle_counter;
+    reg [15:0] compute_cycles;
 
     // --- 状态转移逻辑 ---
     always @(posedge clk or posedge rst) begin
@@ -94,207 +81,172 @@ module convolution_engine (
         next_state = state;
         case (state)
             IDLE:           if (enable) next_state = RECEIVE_KERNEL;
-            RECEIVE_KERNEL: if (kernel_count == 4'd9) next_state = COMPUTE;
-            COMPUTE:        if (output_cnt == 7'd80) next_state = PRINT_RESULT;
+            RECEIVE_KERNEL: if (kernel_count == 4'd9) next_state = LOAD_IMAGE;
+            LOAD_IMAGE:     if (load_addr == 7'd120 && load_phase == 2'd0) next_state = CALC_CONV;
+            CALC_CONV:      if (calc_idx == 7'd80) next_state = PRINT_RESULT;
             PRINT_RESULT:   if (print_done) next_state = SEND_CYCLES;
-            SEND_CYCLES:    if (uart_send_state == UART_IDLE && !uart_tx_valid) next_state = DONE_STATE;
+            SEND_CYCLES:    if (cycle_tx_done) next_state = DONE_STATE;
             DONE_STATE:     if (!enable) next_state = IDLE;
         endcase
     end
 
-    // --- 接收卷积核数据（从UART，自动过滤空格）---
+    // --- 接收卷积核数据 ---
     always @(posedge clk or posedge rst) begin
         if (rst) begin
             kernel_count <= 4'd0;
         end else if (state == IDLE) begin
             kernel_count <= 4'd0;
         end else if (state == RECEIVE_KERNEL && uart_rx_valid) begin
-            // 过滤空格（ASCII 32）和其他非数字字符
-            // 只接受'0'-'9'（ASCII 48-57）
             if (uart_rx_data >= 8'd48 && uart_rx_data <= 8'd57) begin
-                // 将ASCII字符转换为数值：'0'(48) -> 0, '9'(57) -> 9
                 kernel[kernel_count] <= uart_rx_data - 8'd48;
                 kernel_count <= kernel_count + 1;
             end
-            // 忽略空格和其他字符
         end
     end
 
-    // --- 高效流水线卷积计算 ---
+    // --- 阶段1: 加载图像数据 ---
+    // 三拍流程：发地址 -> 等ROM采样 -> 收数据
     integer i;
     
     always @(posedge clk or posedge rst) begin
         if (rst) begin
-            pixel_cnt <= 7'd0;
-            output_cnt <= 7'd0;
-            current_row <= 4'd0;
-            current_col <= 4'd0;
-            cycle_counter <= 16'd0;
+            load_addr <= 7'd0;
+            load_row <= 4'd0;
+            load_col <= 4'd0;
+            load_phase <= 2'd0;
             rom_x <= 4'd0;
             rom_y <= 4'd0;
-            rom_x_d1 <= 4'd0;
-            rom_y_d1 <= 4'd0;
-            
-            for (i = 0; i < 9; i = i + 1) win[i] <= 4'd0;
-            for (i = 0; i < 12; i = i + 1) begin
-                line_buf_0[i] <= 4'd0;
-                line_buf_1[i] <= 4'd0;
-                line_buf_2[i] <= 4'd0;
-            end
-            
-        end else if (state == COMPUTE) begin
-            cycle_counter <= cycle_counter + 1;
-            
-            // ===== 阶段1：ROM地址生成（行扫描顺序）=====
-            if (pixel_cnt < 7'd120) begin
-                rom_x <= current_row;
-                rom_y <= current_col;
-                pixel_cnt <= pixel_cnt + 1;
-                
-                // 更新坐标
-                if (current_col == 4'd11) begin
-                    current_col <= 4'd0;
-                    current_row <= current_row + 1;
-                end else begin
-                    current_col <= current_col + 1;
+            for (i = 0; i < 120; i = i + 1) image[i] <= 4'd0;
+        end else if (state == LOAD_IMAGE) begin
+            case (load_phase)
+                2'd0: begin
+                    // 发地址阶段
+                    rom_x <= load_row;
+                    rom_y <= load_col;
+                    load_phase <= 2'd1;
                 end
-            end
-            
-            // 延迟寄存器（匹配ROM 1周期延迟）
-            rom_x_d1 <= rom_x;
-            rom_y_d1 <= rom_y;
-            
-            // ===== 阶段2：接收ROM数据，更新行缓存和滑动窗口 =====
-            if (pixel_cnt >= 7'd1) begin  // ROM数据延迟1周期后有效
-                
-                // 步骤1：将新数据写入第3行缓存
-                line_buf_2[rom_y_d1] <= rom_data;
-                
-                // 步骤2：如果完成一行，将行缓存整体移位
-                if (rom_y_d1 == 4'd11) begin
-                    // 丢弃最旧的行，整体上移
-                    for (i = 0; i < 12; i = i + 1) begin
-                        line_buf_0[i] <= line_buf_1[i];
-                        line_buf_1[i] <= line_buf_2[i];
+                2'd1: begin
+                    // 等待ROM采样地址（这一拍ROM在采样地址）
+                    load_phase <= 2'd2;
+                end
+                2'd2: begin
+                    // 收数据阶段（ROM数据现在有效）
+                    image[load_addr] <= rom_data;
+                    load_addr <= load_addr + 1;
+                    // 更新行列计数器
+                    if (load_col == 4'd11) begin
+                        load_col <= 4'd0;
+                        load_row <= load_row + 1;
+                    end else begin
+                        load_col <= load_col + 1;
                     end
+                    load_phase <= 2'd0;
                 end
-                
-                // 步骤3：更新3x3滑动窗口（列方向滑动）
-                // 窗口布局：[行-2,列-2] [行-2,列-1] [行-2,列]
-                //           [行-1,列-2] [行-1,列-1] [行-1,列]
-                //           [行,列-2]   [行,列-1]   [行,列]
-                
-                if (rom_y_d1 >= 4'd2) begin
-                    // 窗口列方向滑动：左移一列，右侧填充新列
-                    win[0] <= win[1];  win[1] <= win[2];  win[2] <= line_buf_0[rom_y_d1];
-                    win[3] <= win[4];  win[4] <= win[5];  win[5] <= line_buf_1[rom_y_d1];
-                    win[6] <= win[7];  win[7] <= win[8];  win[8] <= rom_data;
-                end else begin
-                    // 前两列：直接从缓存填充整个窗口
-                    win[0] <= line_buf_0[rom_y_d1];
-                    win[1] <= (rom_y_d1 >= 4'd1) ? line_buf_0[rom_y_d1-1] : 4'd0;
-                    win[2] <= (rom_y_d1 >= 4'd2) ? line_buf_0[rom_y_d1-2] : 4'd0;
-                    
-                    win[3] <= line_buf_1[rom_y_d1];
-                    win[4] <= (rom_y_d1 >= 4'd1) ? line_buf_1[rom_y_d1-1] : 4'd0;
-                    win[5] <= (rom_y_d1 >= 4'd2) ? line_buf_1[rom_y_d1-2] : 4'd0;
-                    
-                    win[6] <= rom_data;
-                    win[7] <= (rom_y_d1 >= 4'd1) ? line_buf_2[rom_y_d1-1] : 4'd0;
-                    win[8] <= (rom_y_d1 >= 4'd2) ? line_buf_2[rom_y_d1-2] : 4'd0;
-                end
-                
-                // 步骤4：当窗口有效时（行>=2, 列>=2），保存卷积结果
-                if (rom_x_d1 >= 4'd2 && rom_y_d1 >= 4'd2) begin
-                    conv_result[output_cnt] <= conv_output;
-                    output_cnt <= output_cnt + 1;
-                end
-            end
-            
-        end else begin
-            // 非COMPUTE状态，重置所有计数器
-            pixel_cnt <= 7'd0;
-            output_cnt <= 7'd0;
-            current_row <= 4'd0;
-            current_col <= 4'd0;
-            cycle_counter <= 16'd0;
-            rom_x <= 4'd0;
-            rom_y <= 4'd0;
+                default: load_phase <= 2'd0;
+            endcase
+        end else if (state == IDLE) begin
+            load_addr <= 7'd0;
+            load_row <= 4'd0;
+            load_col <= 4'd0;
+            load_phase <= 2'd0;
         end
     end
 
-    // --- UART发送周期数（BCD格式：<cnt>\r\n）---
-    localparam UART_IDLE = 3'd0;
-    localparam UART_LT   = 3'd1;  // '<'
-    localparam UART_D100 = 3'd2;  // 百位
-    localparam UART_D10  = 3'd3;  // 十位
-    localparam UART_D1   = 3'd4;  // 个位
-    localparam UART_GT   = 3'd5;  // '>'
-    localparam UART_CR   = 3'd6;  // '\r'
-    localparam UART_LF   = 3'd7;  // '\n'
+    // --- 阶段2: 卷积计算 ---
+    // 输出(out_row, out_col) 对应输入窗口 [out_row:out_row+2, out_col:out_col+2]
     
-    reg [2:0] uart_send_state;
-    reg [15:0] cycles_snapshot;
+    // 使用显式位宽计算地址，避免综合问题
+    wire [6:0] base_addr = {3'b0, out_row} * 7'd12 + {3'b0, out_col};
     
+    wire [6:0] addr0 = base_addr;
+    wire [6:0] addr1 = base_addr + 7'd1;
+    wire [6:0] addr2 = base_addr + 7'd2;
+    wire [6:0] addr3 = base_addr + 7'd12;
+    wire [6:0] addr4 = base_addr + 7'd13;
+    wire [6:0] addr5 = base_addr + 7'd14;
+    wire [6:0] addr6 = base_addr + 7'd24;
+    wire [6:0] addr7 = base_addr + 7'd25;
+    wire [6:0] addr8 = base_addr + 7'd26;
+    
+    // 从本地存储读取窗口数据（组合逻辑）
+    wire [3:0] p0 = image[addr0];
+    wire [3:0] p1 = image[addr1];
+    wire [3:0] p2 = image[addr2];
+    wire [3:0] p3 = image[addr3];
+    wire [3:0] p4 = image[addr4];
+    wire [3:0] p5 = image[addr5];
+    wire [3:0] p6 = image[addr6];
+    wire [3:0] p7 = image[addr7];
+    wire [3:0] p8 = image[addr8];
+    
+    // 卷积计算（组合逻辑）
+    wire [11:0] m0 = p0 * kernel[0];
+    wire [11:0] m1 = p1 * kernel[1];
+    wire [11:0] m2 = p2 * kernel[2];
+    wire [11:0] m3 = p3 * kernel[3];
+    wire [11:0] m4 = p4 * kernel[4];
+    wire [11:0] m5 = p5 * kernel[5];
+    wire [11:0] m6 = p6 * kernel[6];
+    wire [11:0] m7 = p7 * kernel[7];
+    wire [11:0] m8 = p8 * kernel[8];
+    
+    wire [15:0] conv_sum = m0 + m1 + m2 + m3 + m4 + m5 + m6 + m7 + m8;
+
     always @(posedge clk or posedge rst) begin
         if (rst) begin
-            uart_send_state <= UART_IDLE;
-            uart_tx_valid <= 1'b0;
-            uart_tx_data <= 8'd0;
-            cycles_snapshot <= 16'd0;
-        end else begin
-            case (uart_send_state)
-                UART_IDLE: begin
-                    uart_tx_valid <= 1'b0;
-                    if (state == SEND_CYCLES) begin
-                        cycles_snapshot <= cycle_counter;
-                        uart_send_state <= UART_LT;
-                    end
+            calc_idx <= 7'd0;
+            out_row <= 4'd0;
+            out_col <= 4'd0;
+            cycle_counter <= 16'd0;
+            compute_cycles <= 16'd0;
+        end else if (state == LOAD_IMAGE) begin
+            // 在进入CALC_CONV前，确保计数器已重置
+            if (next_state == CALC_CONV) begin
+                cycle_counter <= 16'd0;
+            end
+        end else if (state == CALC_CONV) begin
+            cycle_counter <= cycle_counter + 1;
+            
+            if (calc_idx < 7'd80) begin
+                // 保存当前卷积结果
+                conv_result[calc_idx] <= conv_sum;
+                calc_idx <= calc_idx + 1;
+                
+                // 更新输出坐标 (行优先遍历，8行x10列)
+                if (out_col == 4'd9) begin
+                    out_col <= 4'd0;
+                    out_row <= out_row + 1;
+                end else begin
+                    out_col <= out_col + 1;
                 end
                 
-                UART_LT: begin
-                    uart_tx_valid <= 1'b1;
-                    uart_tx_data <= 8'd60;  // '<'
-                    if (uart_tx_ready) uart_send_state <= UART_D100;
+                // 记录完成时的周期数
+                if (calc_idx == 7'd79) begin
+                    compute_cycles <= cycle_counter;
                 end
-                
-                UART_D100: begin
-                    uart_tx_data <= 8'd48 + (cycles_snapshot / 100) % 10;
-                    if (uart_tx_ready) uart_send_state <= UART_D10;
-                end
-                
-                UART_D10: begin
-                    uart_tx_data <= 8'd48 + (cycles_snapshot / 10) % 10;
-                    if (uart_tx_ready) uart_send_state <= UART_D1;
-                end
-                
-                UART_D1: begin
-                    uart_tx_data <= 8'd48 + cycles_snapshot % 10;
-                    if (uart_tx_ready) uart_send_state <= UART_GT;
-                end
-                
-                UART_GT: begin
-                    uart_tx_data <= 8'd62;  // '>'
-                    if (uart_tx_ready) uart_send_state <= UART_CR;
-                end
-                
-                UART_CR: begin
-                    uart_tx_data <= 8'd13;  // '\r'
-                    if (uart_tx_ready) uart_send_state <= UART_LF;
-                end
-                
-                UART_LF: begin
-                    uart_tx_data <= 8'd10;  // '\n'
-                    if (uart_tx_ready) begin
-                        uart_tx_valid <= 1'b0;
-                        uart_send_state <= UART_IDLE;
-                    end
-                end
-                
-                default: uart_send_state <= UART_IDLE;
-            endcase
+            end
+        end else if (state == IDLE) begin
+            calc_idx <= 7'd0;
+            out_row <= 4'd0;
+            out_col <= 4'd0;
+            cycle_counter <= 16'd0;
+            compute_cycles <= 16'd0;
         end
     end
+
+    // --- 周期计数发送 ---
+    wire cycle_tx_done;
+    
+    cycle_counter_tx u_cycle_tx (
+        .clk(clk),
+        .rst_n(~rst),
+        .enable(state == SEND_CYCLES),
+        .cycle_count(compute_cycles),
+        .uart_tx_en(uart_tx_en),
+        .uart_tx_data(uart_tx_data),
+        .uart_tx_busy(uart_tx_busy),
+        .done(cycle_tx_done)
+    );
 
     // --- 矩阵数据打包与打印控制 ---
     integer j;
@@ -302,7 +254,6 @@ module convolution_engine (
         if (rst) begin
             print_enable <= 1'b0;
         end else if (state == PRINT_RESULT && !print_enable) begin
-            // 将80个结果打包到1280位数据总线
             for (j = 0; j < 80; j = j + 1) begin
                 matrix_data[j*16 +: 16] <= conv_result[j];
             end

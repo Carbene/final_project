@@ -53,7 +53,8 @@ module print_specified_dim_matrix(
     reg        tx_in_progress;   // 单字节发送握手
     reg        uart_tx_busy_d;   // 打拍用于边沿检测
 
-    // 提取计数的位置: place = (m-1)*5 + (n-1)
+    // 行优先(row-major)索引: place = (row-1)*5 + (col-1)
+    // 系统约定: m=行(row), n=列(col) → row=dim_m, col=dim_n
     wire [4:0] place = (dim_m - 3'd1) * 5 + (dim_n - 3'd1);
     // 与 print_table 保持一致的低位在前打包方式
     wire [1:0] table_cnt = info_table[(place << 1) +: 2];

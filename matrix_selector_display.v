@@ -272,10 +272,11 @@ module matrix_selector_display #(
                 
                 LOAD_MATRIX_REQ: begin
                     // 只在第一个周期发送 read_en 脉冲
+                    // m=row, n=col: rd_row=m, rd_col=n
                     if (!read_req_sent) begin
                         read_en <= 1'b1;
-                        rd_col <= dim_m_buffer;
-                        rd_row <= dim_n_buffer;
+                        rd_row <= dim_m_buffer;
+                        rd_col <= dim_n_buffer;
                         rd_mat_index <= matrix_id_buffer;
                         read_req_sent <= 1'b1;
                     end

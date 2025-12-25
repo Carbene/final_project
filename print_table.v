@@ -22,12 +22,14 @@ module print_table(
 
     // --- 状态机定义 ---
     localparam S_IDLE        = 4'd0,
-               S_FETCH       = 4'd1, // 提取 2-bit 数据
-               S_CHECK       = 4'd2, // 检查是否为 0
-               S_SET_DATA    = 4'd3, // 准备 ASCII
-               S_SEND        = 4'd4, // 发送状态，类似 matrix_printer 的 SEND
-               S_NEXT_STEP   = 4'd5, // 步进控制核心
-               S_DONE        = 4'd6;
+               S_HEADER_SET  = 4'd1, // 准备发送表头总数（两位+空格）
+               S_HEADER_SEND = 4'd2, // 发送表头字节
+               S_FETCH       = 4'd3, // 提取 2-bit 数据
+               S_CHECK       = 4'd4, // 检查是否为 0
+               S_SET_DATA    = 4'd5, // 准备 ASCII
+               S_SEND        = 4'd6, // 发送状态，类似 matrix_printer 的 SEND
+               S_NEXT_STEP   = 4'd7, // 步进控制核心
+               S_DONE        = 4'd8;
 
     reg [3:0] state, next_state;
     reg [3:0] step_cnt; 
@@ -38,6 +40,7 @@ module print_table(
     reg wait_tx_done; // 等待 uart_tx 完成当前字节
     reg send_done;    // 当前字符发送完成
     reg header_done; 
+    reg [1:0] header_idx; // 0..2: tens, ones, space
     // 发送字符间的冷却计数（可选）
     parameter integer COOL_TIME = 16'd1000; // 根据时钟与UART速率可适当调整
     reg [15:0] cool_cnt;
@@ -55,7 +58,9 @@ module print_table(
     always @(*) begin
         next_state = state;
         case (state)
-            S_IDLE:       if (start) next_state = S_FETCH;
+            S_IDLE:       if (start) next_state = S_HEADER_SET;
+            S_HEADER_SET:                 next_state = S_HEADER_SEND;
+            S_HEADER_SEND: if (header_done) next_state = S_FETCH; else next_state = S_HEADER_SEND;
             S_FETCH:      next_state = S_CHECK;
             S_CHECK: begin
                 if (cur_cell_val == 2'd0) next_state = S_NEXT_STEP; // 关键：为0直接跳过发送
@@ -81,13 +86,47 @@ module print_table(
         if (!rst_n) begin
             uart_tx_en <= 0; uart_tx_data <= 0; busy <= 0; done <= 0;
             step_cnt <= 0; cell_idx <= 0; row <= 1; col <= 1;
-            wait_tx_done <= 1'b0; send_done <= 1'b0; header_done <= 0;
+            wait_tx_done <= 1'b0; send_done <= 1'b0; header_done <= 0; header_idx <= 2'd0;
         end else begin
             case (state)
                 S_IDLE: begin
                     busy <= 0; done <= 0; step_cnt <= 0; cell_idx <= 0;
                     row <= 1; col <= 1; wait_tx_done <= 1'b0; send_done <= 1'b0;
-                    uart_tx_en <= 0; header_done <= 0;
+                    uart_tx_en <= 0; header_done <= 0; header_idx <= 2'd0;
+                end
+
+                // 表头：固定输出两位总数 + 空格
+                S_HEADER_SET: begin
+                    busy <= 1'b1;
+                    // BCD 拆分（与原实现一致）
+                    t_tens <= (cnt >= 90) ? 9 : (cnt >= 80) ? 8 : (cnt >= 70) ? 7 : (cnt >= 60) ? 6 : (cnt >= 50) ? 5 : (cnt >= 40) ? 4 : (cnt >= 30) ? 3 : (cnt >= 20) ? 2 : (cnt >= 10) ? 1 : 0;
+                    t_ones <= cnt % 10;
+                    header_idx <= 2'd0;
+                    wait_tx_done <= 1'b0;
+                end
+
+                S_HEADER_SEND: begin
+                    busy <= 1'b1;
+                    // 选择当前要发送的表头字节
+                    case (header_idx)
+                        2'd0: uart_tx_data <= ASCII_0 + t_tens;
+                        2'd1: uart_tx_data <= ASCII_0 + t_ones;
+                        default: uart_tx_data <= ASCII_SPACE;
+                    endcase
+                    // 发送握手（与 S_SEND 相同模式）
+                    if (!wait_tx_done && !uart_tx_busy) begin
+                        uart_tx_en   <= 1'b1;
+                        wait_tx_done <= 1'b1;
+                    end else if (wait_tx_done && uart_tx_busy) begin
+                        uart_tx_en <= 1'b0;
+                    end else if (wait_tx_done && !uart_tx_busy && uart_tx_en == 1'b0) begin
+                        wait_tx_done <= 1'b0;
+                        if (header_idx == 2'd2) begin
+                            header_done <= 1'b1; // 表头已完成
+                        end else begin
+                            header_idx <= header_idx + 1'b1;
+                        end
+                    end
                 end
 
                 S_FETCH: begin
@@ -97,6 +136,8 @@ module print_table(
                     // 简单的 BCD 转换实现 (cnt 为输入 8-bit 总数)
                     t_tens <= (cnt >= 90) ? 9 : (cnt >= 80) ? 8 : (cnt >= 70) ? 7 : (cnt >= 60) ? 6 : (cnt >= 50) ? 5 : (cnt >= 40) ? 4 : (cnt >= 30) ? 3 : (cnt >= 20) ? 2 : (cnt >= 10) ? 1 : 0;
                     t_ones <= cnt % 10; // 较小的常数取模在100M下通常安全
+                    // 根据是否已发送表头，决定起始步进（3=从行号开始）
+                    step_cnt <= header_done ? 4'd3 : 4'd0;
                 end
 
                 S_SET_DATA: begin
