@@ -53,11 +53,7 @@ module sys_top(
     // --- UART TX ---
 	reg uart_tx_en;
 	reg [7:0] uart_tx_data;
-	reg print_sent;
 	wire uart_tx_busy;
-	// --- print??????? ---
-	wire print_busy, print_done, print_dout_valid;
-	wire [7:0] print_dout;
 
 	uart_tx u_tx(
 		.clk(clk),
@@ -83,9 +79,15 @@ module sys_top(
     always @(posedge clk or negedge rst_n) begin
         if(!rst_n) begin
             led <= 8'd0;
+            dk1_segments <= 8'hFF;    // 数码管默认全灭
+            dk2_segments <= 8'hFF;
+            dk_digit_select <= 8'h00; // 数码管位选默认不选中
         end
         else begin
             led <= led_wire;
+            dk1_segments <= 8'hFF;    // 暂未使用
+            dk2_segments <= 8'hFF;
+            dk_digit_select <= 8'h00;
         end
     end
 
@@ -119,13 +121,6 @@ module sys_top(
 	reg [24:0] led3_cnt;
 	wire [7:0] ld2_wire;
 	assign ld2_wire = {7'd0, led0_on};
-
-
-	// ??????????????��???????????
-	assign seg_data0 = 8'd0;
-	assign seg_data1 = 8'd0;
-	assign seg_sel0 = 8'd0;
-	assign seg_sel1 = 8'd0;
 
 	// --- LED0��˸���� (�洢ָʾ) ---
 	always @(posedge clk or negedge rst_n) begin
@@ -322,9 +317,6 @@ module sys_top(
 	
 	// --- Generate Mode ��������ģʽ ---
 	// ����: ����UART����Ĳ���������ɾ���
-	// ����UART RX��������
-	wire [7:0] uart_data_gen;
-	assign uart_data_gen = uart_rx_data;
 	wire [199:0] gen_flow;
 	wire gen_done;
 	wire gen_error;
@@ -334,7 +326,7 @@ module sys_top(
 		.clk(clk),
 		.rst_n(rst_n),
 		.start(generate_mode_en),
-		.uart_data(uart_data_gen),
+		.uart_data(uart_rx_data),
 		.uart_data_valid(uart_rx_done),
 		.gen_matrix_flat(gen_flow),
 		.gen_m(gen_m),
@@ -352,12 +344,8 @@ module sys_top(
 
 	// Generateģʽ��UART����ź�?
 	wire uart_tx_en_gen;
-	wire [7:0] uart_tx_data_gen;
+	wire [7:0] uart_tx_data_gen_out;
 	wire print_done_gen;
-
-	// Displayģʽ UART ����分三路：表格、计数头、矩阵正�?
-	wire uart_tx_en_display;
-	wire [7:0] uart_tx_data_display;
 	// 指定规格计数�? UART（来�? print_specified_dim_matrix�?
 	wire uart_tx_en_spec_cnt;
 	wire [7:0] uart_tx_data_spec_cnt;
@@ -374,7 +362,7 @@ module sys_top(
 		end else if (generate_mode_en) begin
 			// ����ģʽ - ������ɵľ���?
 			uart_tx_en = uart_tx_en_gen;
-			uart_tx_data = uart_tx_data_gen;
+			uart_tx_data = uart_tx_data_gen_out;
 		end else if (display_mode_en) begin
 			// 显示模式 - 优先表格 -> 计数�? -> 矩阵正文 -> 用户选择的矩�?
 			if (print_busy_table || print_table_start) begin
@@ -392,18 +380,25 @@ module sys_top(
 				// 用户选择矩阵的打�? (selector)
 				uart_tx_en   = uart_tx_en_selector;
 				uart_tx_data = uart_tx_data_selector;
-			end else if(conv_print_enable && conv_mode_en) begin
-			// conv模块的矩阵打�?
-			uart_tx_en   = conv_printer_tx_start;
-			uart_tx_data = conv_printer_tx_data;
-			end	else if(!conv_print_enable && conv_mode_en) begin
-					uart_tx_en   = conv_uart_tx_valid;
-					uart_tx_data = conv_uart_tx_data;
 			end else begin
+				uart_tx_en = 1'b0;
+				uart_tx_data = 8'd0;
+			end
+		end else if (conv_mode_en) begin
+			// 卷积模式 - 优先矩阵打印，否则发送控制信息
+			if (conv_print_enable) begin
+				// conv模块的矩阵打�?
+				uart_tx_en   = conv_printer_tx_start;
+				uart_tx_data = conv_printer_tx_data;
+			end else begin
+				// conv模块的控制信息输出
+				uart_tx_en   = conv_uart_tx_valid;
+				uart_tx_data = conv_uart_tx_data;
+			end
+		end else begin
 			uart_tx_en = 1'b0;
 			uart_tx_data = 8'd0;
 		end
-	end
 	end
 	// --- Matrix Printer for Parse ����ģʽ������? ---
 	// ������: uart_parser -> parsed_matrix_flat -> matrix_printer -> UART TX
@@ -431,10 +426,10 @@ module sys_top(
 		.dimM(gen_m),                 // ����: ���ɵľ�������
 		.dimN(gen_n),                 // ����: ���ɵľ�������
 		.use_crlf(1'b1),              // ʹ�ûس�����
-		.tx_start(uart_tx_en_gen),    // ���?: UART����ʹ��
-		.tx_data(uart_tx_data_gen),   // ���?: UART��������
-		.tx_busy(uart_tx_busy),       // ����: UARTæ״̬
-		.done(print_done_gen)         // ���?: ��ӡ���?
+		.tx_start(uart_tx_en_gen),        // ���?: UART����ʹ��
+		.tx_data(uart_tx_data_gen_out),   // ���?: UART��������
+		.tx_busy(uart_tx_busy),           // ����: UARTæ״̬
+		.done(print_done_gen)             // ���?: ��ӡ���?
 	);
 	
 	// ========== Display Mode ��ʾģʽ ==========
@@ -613,7 +608,6 @@ module sys_top(
 	wire conv_done;
 	wire conv_busy;
 	wire conv_print_enable;
-	wire conv_matrix_data;
 	wire conv_print_done;
 	wire conv_uart_tx_valid;
 	wire [7:0] conv_uart_tx_data;   // 修复：从1位改为8位
@@ -624,7 +618,7 @@ module sys_top(
 	.clk(clk),
 	.rst(~rst_n),  // 修复：convolution_engine使用高电平复位，需要取反
 	.enable(conv_mode_en),
-	.uart_rx_valid(uart_rx_done),
+	.uart_rx_valid(uart_rx_done & conv_mode_en),  // 修复：只在卷积模式下接收UART数据
 	.uart_rx_data(uart_rx_data),
 	.done(conv_done),
 	.busy(conv_busy),
@@ -633,14 +627,14 @@ module sys_top(
 	.print_done(conv_print_done),
 	.uart_tx_valid(conv_uart_tx_valid),
 	.uart_tx_data(conv_uart_tx_data),
-	.uart_tx_ready(~uart_tx_busy)
+	.uart_tx_ready(~uart_tx_busy & conv_mode_en)  // 修复：只在卷积模式下响应UART TX
 	);
 	wire conv_printer_tx_start;
 	wire [7:0] conv_printer_tx_data;  // 修复：从1位改为8位
 	conv_matrix_printer u_conv_matrix_printer (
 	.clk(clk),
 	.rst_n(rst_n),
-	.start(conv_print_enable),
+	.start(conv_print_enable & conv_mode_en),    // 修复：只在卷积模式下启动打印
 	.matrix_flat(conv_matrix_flat),      // 80 * 16
 	.tx_busy(uart_tx_busy),
 	.tx_start(conv_printer_tx_start),           // drive uart_tx_en
