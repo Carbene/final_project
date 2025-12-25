@@ -31,8 +31,8 @@ module matrix_alu (
 
 // 运算类型定义
 localparam OP_TRANSPOSE = 3'd0;
-localparam OP_ADD       = 3'd1;
-localparam OP_SCALAR    = 3'd2;
+localparam OP_SCALAR    = 3'd1;
+localparam OP_ADD       = 3'd2;
 localparam OP_MULTIPLY  = 3'd3;
 
 // 状态机
@@ -74,7 +74,7 @@ always @(posedge clk or negedge rst_n) begin
     if (!rst_n) begin
         state <= IDLE;
         done <= 1'b0;
-        valid <= 1'b0;
+        valid <= 1'b1;
         i <= 3'd0;
         j <= 3'd0;
         k <= 3'd0;
@@ -98,10 +98,11 @@ always @(posedge clk or negedge rst_n) begin
                 if (start) begin
                     // 检查运算数合法性
                     case (op_code)
-                        OP_TRANSPOSE: valid <= 1'b1;
-                        OP_ADD:       valid <= (m_a == m_b) && (n_a == n_b);
-                        OP_SCALAR:    valid <= 1'b1;
-                        OP_MULTIPLY:  valid <= (n_a == m_b);
+                        OP_TRANSPOSE: valid <= m_a >= 3'd0 && n_a >= 3'd0 && m_a <= 3'd5 && n_a <= 3'd5;
+                        OP_ADD:       valid <= (m_a == m_b) && (n_a == n_b) && m_a >= 3'd0 && n_a >= 3'd0 && m_a <= 3'd5 && n_a <= 3'd5;
+                        OP_SCALAR:    valid <= m_a >= 3'd0 && n_a >= 3'd0 && m_a <= 3'd5 && n_a <= 3'd5;
+                        OP_MULTIPLY:  valid <= (n_a == m_b) && m_a >= 3'd0 && n_a >= 3'd0 && m_b >= 3'd0 && n_b >= 3'd0 &&
+                                              m_a <= 3'd5 && n_a <= 3'd5 && m_b <= 3'd5 && n_b <= 3'd5;
                         default:      valid <= 1'b0;
                     endcase
                     

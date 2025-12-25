@@ -681,4 +681,225 @@ module sys_top(
 	.done(conv_print_done) 
 	);               // pulses high when all rows sent
 
+	reg [199:0] matrix_selected [1:0];
+	reg [2:0] m_selected [1:0];
+	reg [2:0] n_selected [1:0];
+	reg ptr;
+	always @(posedge clk or negedge rst_n) begin
+	    if (!rst_n) begin
+	        ptr <= 1'b0;
+			matrix_selected[0] <= 200'd0;
+			matrix_selected[1] <= 200'd0;
+			m_selected[0] <= 3'd0;
+			m_selected[1] <= 3'd0;
+			n_selected[0] <= 3'd0;
+	    end else if (display_done) begin
+			ptr <= ~ptr;
+			matrix_selected[ptr] <= selector_matrix_flat;
+			m_selected[ptr] <= spec_dim_m;
+			n_selected[ptr] <= spec_dim_n;
+	    end
+	end
+
+	reg [3:0] calc_mode;
+	wire [2:0] op_code = calc_mode[2:0];
+	reg calc_start;
+	reg error_not_cleaned;
+
+	reg [3:0] state, next_state;
+	reg [7:0] scalr_input;
+	wire scalar_valid = (scalar >= 8'd0) && (scalar <= 8'd9);
+
+	localparam CALC_IDLE        = 4'd0;
+	localparam CALC_WAIT_CONFIRM = 4'd1;
+	localparam CALC_BRANCH       = 4'd2;
+	localparam CALC_SCALAR_CONFIRM = 4'd3;
+	localparam CALC_SCALAR_VALIDATE = 4'd5;
+	localparam CALC_COMPUTE    = 4'd4;
+	localparam RESULT_WAIT    = 4'd7;
+	localparam RESULT_PRINT    = 4'd8;
+	localparam ERROR_SCALAR          = 4'd9;
+	localparam ERROR_MATRIX      = 4'd10;
+	localparam DONE      = 4'd6;
+
+
+	localparam OP_TRANSPOSE = 3'd0;
+	localparam OP_SCALAR = 3'd1;
+	localparam OP_ADD       = 3'd2;
+	localparam OP_MULTIPLY  = 3'd3;
+
+	always @(posedge clk or negedge rst_n) begin
+	    if (!rst_n) begin
+	        state <= CALC_IDLE;
+	    end else begin
+	        state <= next_state;
+	    end
+	end
+
+	always @(*) begin
+	    next_state = state;
+	    case (state)
+	        CALC_IDLE: begin
+	            if (calculation_mode_en) begin
+					if(error_not_cleaned) begin
+						next_state = CALC_COMPUTE;
+					end else begin
+	                next_state = CALC_WAIT_CONFIRM;
+					end
+	            end
+	        end
+	        CALC_WAIT_CONFIRM: begin
+	            if(btn_confirm_db) begin
+					next_state = CALC_BRANCH;
+	            end
+	        end
+
+			CALC_BRANCH: begin
+				if(op_code == OP_SCALAR) begin
+					next_state = CALC_SCALAR_CONFIRM;
+				end else begin
+					next_state = CALC_COMPUTE;
+				end
+			end
+
+			CALC_SCALAR_CONFIRM: begin
+				if(btn_confirm_db) begin
+					next_state = CALC_SCALAR_VALIDATE;
+				end
+			end
+
+			CALC_SCALAR_VALIDATE: begin
+				if(scalar_valid) begin
+					next_state = CALC_COMPUTE;
+				end else begin
+					next_state = ERROR_SCALAR;
+				end
+			end
+
+			CALC_COMPUTE: begin
+				if(result_done) begin
+					next_state = DONE;
+				end
+			end
+
+			DONE:begin
+				if(result_valid) begin
+					next_state = RESULT_PRINT;
+				end else begin
+					next_state = ERROR_MATRIX;
+				end
+			end
+
+			RESULT_PRINT: begin
+				if(result_printer_done) begin
+					next_state = DONE;
+				end
+			end
+
+			ERROR_SCALAR: begin
+				next_state = CALC_SCALAR_CONFIRM;
+			end
+
+			DONE: begin
+				if(!calculation_mode_en) begin
+					next_state = CALC_IDLE;
+				end
+			end
+
+			ERROR_MATRIX: begin
+				next_state = CALC_IDLE;
+			end
+
+	        default: begin
+	            next_state = CALC_IDLE;
+	        end
+	    endcase
+	end
+	always@(*) begin
+	    calc_start = 1'b0;
+	    calc_mode = 4'd0;
+	    scalar = 8'd0;
+	    case (next_state)
+			CALC_IDLE: begin
+			end
+			CALC_WAIT_CONFIRM: begin
+				if(btn_confirm_db) begin
+					calc_mode = user_calc_mode;
+				end
+			end
+	        CALC_BRANCH: begin
+				calc_mode = user_calc_mode;
+			end
+			CALC_SCALAR_VALIDATE: begin
+				if(scalar_valid) begin
+					scalar = scalar_input;
+					error_not_cleaned = 1'b0;
+				end
+			end
+			CALC_COMPUTE: begin
+				calc_start = 1'b1;
+			end
+			ERROR_SCALAR: begin
+				error_not_cleaned = 1'b1;
+			end
+			ERROR_MATRIX: begin
+				error_not_cleaned = 1'b1;
+			end
+			DONE: begin
+				error_not_cleaned = 1'b0;
+			end
+
+	        default: begin
+	            // do nothing
+	        end
+	    endcase
+	end
+
+	reg result_printer_start;
+	reg result_printer_done;
+	reg result_printer_tx_start;
+	reg [7:0] result_printer_tx_data;
+
+	matrix_printer16 u_matrix_printer16 (
+	    .clk(clk),
+	    .rst_n(rst_n),
+	    .start(result_printer_start),
+	    .dimM(result_m),
+	    .dimN(result_n),
+	    .matrix_flat(result_flat),
+	    .use_crlf(1'b1),
+	    .tx_start(result_printer_tx_start),
+	    .tx_data(result_printer_tx_data),
+	    .tx_busy(uart_tx_busy),
+	    .done(result_printer_done)
+	);
+
+	wire [399:0] result_flat;
+	wire [2:0] result_m;
+	wire [2:0] result_n;
+	wire result_done;
+	wire result_valid;
+	reg [7:0] scalar;
+	wire result_busy;
+
+	matrix_alu u_matrix_alu (
+	    .clk(clk),
+	    .rst_n(rst_n),
+	    .op_code(op_code),
+	    .start(calc_start),
+	    .matrix_a_flat(matrix_selected[0]),
+	    .m_a(m_selected[0]),
+	    .n_a(n_selected[0]),
+	    .matrix_b_flat(matrix_selected[1]),
+	    .m_b(m_selected[1]),
+	    .n_b(n_selected[1]),
+	    .scalar(scalar_input), // Example scalar value
+	    .result_flat(result_flat),
+	    .result_m(result_m),
+	    .result_n(result_n),
+	    .done(result_done),
+	    .valid(result_valid),
+	    .busy(result_busy)
+	);
+
 endmodule
