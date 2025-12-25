@@ -227,6 +227,43 @@ module sys_top(
 		.parse_done(parse_done),
 		.parse_error(parse_error)
 	);
+
+	// --- Parse print handshake to ensure reliable start ---
+	// Detect rising edge of parse_done, hold a request until UART is idle,
+	// then generate a one-cycle start pulse for the parse printer.
+	reg parse_done_q;
+	always @(posedge clk or negedge rst_n) begin
+	    if (!rst_n) begin
+	        parse_done_q <= 1'b0;
+	    end else begin
+	        parse_done_q <= parse_done;
+	    end
+	end
+
+	reg parse_print_req;
+	always @(posedge clk or negedge rst_n) begin
+	    if (!rst_n) begin
+	        parse_print_req <= 1'b0;
+	    end else if (parse_done & ~parse_done_q) begin
+	        // latch request on parse_done rising edge
+	        parse_print_req <= 1'b1;
+	    end else if (print_done_parse) begin
+	        // clear when printing completes
+	        parse_print_req <= 1'b0;
+	    end
+	end
+
+	reg parse_print_start;
+	always @(posedge clk or negedge rst_n) begin
+	    if (!rst_n) begin
+	        parse_print_start <= 1'b0;
+	    end else if (parse_print_req && !uart_tx_busy && data_input_mode_en) begin
+	        // issue a single-cycle start when UART is idle in input mode
+	        parse_print_start <= 1'b1;
+	    end else begin
+	        parse_print_start <= 1'b0;
+	    end
+	end
 	// --- Matrix Store ����洢�����߼�? ---
 	// ����: �����������ɵľ���д��洢ģ��?
 	// ��������: parse_done (�������?) �� gen_valid (������Ч)
@@ -405,7 +442,7 @@ module sys_top(
 	matrix_printer u_print_for_parse (
 		.clk(clk),
 		.rst_n(rst_n),
-		.start(parse_done),              // �������ʱ�������?
+		.start(parse_print_start),       // reliable start after UART idle
 		.matrix_flat(parsed_matrix_flat), // ����: ������ľ�������?
 		.dimM(parsed_m),                 // ����: ��������
 		.dimN(parsed_n),                 // ����: ��������
