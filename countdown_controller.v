@@ -11,16 +11,16 @@ module countdown_controller#(
     // output reg [7:0] dk2_segments,  // 移除，公用dk1_segments
     output reg [7:0] dk_digit_select
 );  
-    parameter NUM_0 = 8'b1111_1100; 
-    parameter NUM_1 = 8'b0110_0000; 
-    parameter NUM_2 = 8'b1101_1010; 
-    parameter NUM_3 = 8'b1111_0010; 
+    parameter NUM_0 = 8'b0011_1111; 
+    parameter NUM_1 = 8'b0000_0110; 
+    parameter NUM_2 = 8'b0101_1011; 
+    parameter NUM_3 = 8'b0100_1111; 
     parameter NUM_4 = 8'b0110_0110; 
-    parameter NUM_5 = 8'b1011_0110; 
-    parameter NUM_6 = 8'b1011_1110;
-    parameter NUM_7 = 8'b1110_0000;
-    parameter NUM_8 = 8'b1111_1110;
-    parameter NUM_9 = 8'b1111_0110; 
+    parameter NUM_5 = 8'b0110_1101; 
+    parameter NUM_6 = 8'b0111_1101;
+    parameter NUM_7 = 8'b0000_0111;
+    parameter NUM_8 = 8'b0111_1111;
+    parameter NUM_9 = 8'b0110_1111; 
 
     // 倒计时相关寄存器
     reg [26:0] sec_counter; // 秒计数器，100MHz时钟，1秒=100_000_000周期
