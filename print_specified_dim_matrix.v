@@ -53,9 +53,25 @@ module print_specified_dim_matrix(
     reg        tx_in_progress;   // 单字节发送握手
     reg        uart_tx_busy_d;   // 打拍用于边沿检测
 
-    // 行优先(row-major)索引: place = (row-1)*5 + (col-1)
-    // 系统约定: m=行(row), n=列(col) → row=dim_m, col=dim_n
-    wire [4:0] place = (dim_m - 3'd1) * 5 + (dim_n - 3'd1);
+    // // 行优先(row-major)索引: place = (row-1)*5 + (col-1)
+    // // 系统约定: m=行(row), n=列(col) → row=dim_m, col=dim_n
+    // wire [4:0] place = ({2'd0, dim_m} - 5'd1) * 5'd5 + ({2'd0, dim_n} - 5'd1);
+
+    // 1. 扩展 (Expand)：
+// 像 print_table 一样，定义足够宽的“容器”，甚至比需要的还大一点(8 bit)，彻底消除溢出焦虑。
+// 这里我们把输入的 3bit 放到 8bit 的大房子里。
+    wire [7:0] dim_m_safe = {5'd0, dim_m};
+    wire [7:0] dim_n_safe = {5'd0, dim_n};
+
+// 2. 计算 (Calculate)：
+// 在 8 bit 的空间里做减法和乘法。
+// 即使 dim_m 意外是 0，0-1 = 255 (8bit)，虽然数不对，但至少不会因为 5bit 截断产生奇怪的混叠。
+// 而且，如果输入正常(1~5)，(5-1)*5 = 20，这在 8bit 里简直绰绰有余。
+    wire [7:0] place_calc = (dim_m_safe - 8'd1) * 8'd5 + (dim_n_safe - 8'd1);
+
+// 3. 收缩 (Contract)：
+// 只有在计算全部安全完成后，再把结果赋值给 5 bit 的目标。
+    wire [4:0] place = place_calc[4:0];
     // 与 print_table 保持一致的低位在前打包方式
     wire [1:0] table_cnt = info_table[(place << 1) +: 2];
 

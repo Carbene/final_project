@@ -55,7 +55,7 @@ reg        valid_pipe1, valid_pipe2;
 
 // 辅助信号：提取矩阵元素
 wire [7:0] a_elem, b_elem;
-// 依据锁存的实际列数进行索引，避免固定5列导致跨行取数错误
+// 依据锁存的实际列数进行索引，紧凑行优先打包（与打印模块一致）
 assign a_elem = matrix_a_flat[((i)*n_len+(j))*8 +: 8];
 assign b_elem = matrix_b_flat[((i)*n_len+(j))*8 +: 8];
 
@@ -125,8 +125,8 @@ always @(posedge clk or negedge rst_n) begin
                 end else begin
                     case (op_code)
                         OP_TRANSPOSE: begin
-                            // result[j][i] = a[i][j]，输出按实际列数紧凑存储（8-bit）
-                            result_flat[((j)*m_len+(i))*8 +: 8] <= a_elem;
+                            // result[j][i] = a[i][j]，输出16位存储以匹配matrix_printer16，紧凑打包
+                            result_flat[((j)*m_len+(i))*16 +: 16] <= {8'd0, a_elem};
                             
                             if (j == n_len - 1) begin
                                 j <= 3'd0;
@@ -143,8 +143,8 @@ always @(posedge clk or negedge rst_n) begin
                         end
                         
                         OP_ADD: begin
-                            // 加法结果紧凑写回，行跨度为实际列数（8-bit，饱和255）
-                            result_flat[((i)*n_len+(j))*8 +: 8] <= (add_tmp > 16'd255) ? 8'd255 : add_tmp[7:0];
+                            // 加法结果16位存储以匹配matrix_printer16（饱和255），紧凑打包
+                            result_flat[((i)*n_len+(j))*16 +: 16] <= (add_tmp > 16'd255) ? 16'd255 : add_tmp;
                             
                             if (j == n_len - 1) begin
                                 j <= 3'd0;
@@ -161,8 +161,8 @@ always @(posedge clk or negedge rst_n) begin
                         end
                         
                         OP_SCALAR: begin
-                            // 标量乘法同样按实际列数紧凑存储（8-bit，饱和255）
-                            result_flat[((i)*n_len+(j))*8 +: 8] <= (scalar_tmp > 16'd255) ? 8'd255 : scalar_tmp[7:0];
+                            // 标量乘法16位存储以匹配matrix_printer16（饱和255），紧凑打包
+                            result_flat[((i)*n_len+(j))*16 +: 16] <= (scalar_tmp > 16'd255) ? 16'd255 : scalar_tmp;
                             
                             if (j == n_len - 1) begin
                                 j <= 3'd0;
@@ -188,8 +188,8 @@ always @(posedge clk or negedge rst_n) begin
 
                                 k <= k + 1'b1;
                             end else begin
-                                // 结果存储阶段：乘积矩阵列数为 nb_len，按紧凑格式写入（8-bit，饱和255）
-                                result_flat[((i)*nb_len+(j))*8 +: 8] <= (temp_sum > 16'd255) ? 8'd255 : temp_sum[7:0];
+                                // 结果存储阶段：矩阵乘法16位存储以匹配matrix_printer16（饱和255），紧凑打包
+                                result_flat[((i)*nb_len+(j))*16 +: 16] <= temp_sum;
 
                                 k <= 4'd0;
                                 temp_sum <= 16'd0;

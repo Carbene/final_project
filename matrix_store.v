@@ -58,8 +58,8 @@ integer i;
 
 // 索引计算：改为行优先(row-major)：place = (row-1)*5 + (col-1)
 // 与 print_table / print_specified_dim_matrix 保持一致
-wire [4:0] wt_place = (mat_row - 3'd1) * 3'd5 + (mat_col - 3'd1);
-wire [4:0] rd_place = (rd_row - 3'd1) * 3'd5 + (rd_col - 3'd1);
+wire [4:0] wt_place = ({2'd0, mat_row} - 5'd1) * 5'd5 + ({2'd0, mat_col} - 5'd1);
+wire [4:0] rd_place = ({2'd0, rd_row} - 5'd1) * 5'd5 + ({2'd0, rd_col} - 5'd1);
 
 always @(posedge clk or negedge rst_n) begin
     if (!rst_n) begin
