@@ -72,8 +72,13 @@ module print_specified_dim_matrix(
 // 3. 收缩 (Contract)：
 // 只有在计算全部安全完成后，再把结果赋值给 5 bit 的目标。
     wire [4:0] place = place_calc[4:0];
+    
+// 4. 索引 info_table 时也要使用足够的位宽，避免左移溢出
+// 关键修复：place << 1 可能超过 5 位表示范围（例如 place=16 时，16<<1=32）
+// 必须使用更宽的位宽来计算索引，否则会访问越界
+    wire [7:0] bit_index = {3'd0, place} << 1;  // 用 8 位计算索引，避免溢出
     // 与 print_table 保持一致的低位在前打包方式
-    wire [1:0] table_cnt = info_table[(place << 1) +: 2];
+    wire [1:0] table_cnt = info_table[bit_index +: 2];
 
     // 状态定义（两段/三段式）
     localparam S_IDLE        = 4'd0;

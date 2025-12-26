@@ -59,12 +59,10 @@ always @(posedge clk or negedge rst_n) begin
         timeout_counter <= 32'd0;
         seen_activity <= 1'b0;
         target_reached <= 1'b0;
-    end else begin
-        if (state == IDLE) begin
-            parse_done  <= 1'b0;
-            parse_error <= 1'b0;
-        end
 
+    end else begin
+        parse_error <= 1'b0; // 解析过程中默认清除错误标志
+        
         case (state)
             IDLE: begin
                 if (parse_enable) begin
@@ -228,6 +226,7 @@ always @(posedge clk or negedge rst_n) begin
 
             ERROR: begin
                 if (!parse_enable) state <= IDLE;
+                parse_error <= 1'b1;
             end
 
             default: state <= IDLE;
