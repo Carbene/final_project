@@ -98,6 +98,7 @@ module generate_mode #(
                 if (!start) next_state = IDLE;
             end
             ERR: begin
+                if(!start)
                 next_state = IDLE;
             end
             default: next_state = IDLE;
@@ -154,7 +155,7 @@ module generate_mode #(
                     gen_valid <= 1'b0; // 确保只保持一拍
                 end
 
-                DONE: begin
+                DONE: begin 
                     gen_done <= 1'b1;
                 end
 

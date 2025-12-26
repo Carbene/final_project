@@ -183,7 +183,9 @@ module matrix_selector_display #(
             WAIT_STATE:
             if(!start)
                 next_state = IDLE;
+
             ERROR_STATE:
+            if(!start)
                 next_state = IDLE;
             
             default:

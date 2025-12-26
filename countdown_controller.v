@@ -1,15 +1,13 @@
-module countdown_controller#(
-    parameter COUNT_TIME=15
-)(
+module countdown_controller(
     input wire clk,
     input wire rst_n,
     input wire start,
-    output reg done,
-    input wire btn_confirm,   //不要用外面的btn_confirn，会和主状态机冲突，单开一个按钮
-    output reg feedback,
+    output reg counting, // 倒计时进行中标志
+    output reg done,     // 倒计时完成标志
+    input wire end_timer,
     output reg [7:0] dk1_segments,
-    // output reg [7:0] dk2_segments,  // 移除，公用dk1_segments
-    output reg [7:0] dk_digit_select
+    output reg [7:0] dk_digit_select,
+    input [7:0] countdown_time
 );  
     parameter NUM_0 = 8'b0011_1111; 
     parameter NUM_1 = 8'b0000_0110; 
@@ -25,13 +23,8 @@ module countdown_controller#(
     // 倒计时相关寄存器
     reg [26:0] sec_counter; // 秒计数器，100MHz时钟，1秒=100_000_000周期
     reg [3:0] countdown_value; // 倒计时值，0-15
-    reg counting; // 是否正在倒计时
-    reg btn_pressed; // 是否在倒计时过程中按过按钮
     localparam SEC_COUNT = 27'd100_000_000; // 1秒的时钟周期数
 
-    // 脉冲生成
-    reg feedback_pulse;
-    reg done_pulse;
 
     // 显示相关寄存器
     reg [15:0] display_counter; // 显示分频计数器，100MHz / 50000 ≈ 2kHz
@@ -63,31 +56,21 @@ module countdown_controller#(
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             sec_counter <= 27'd0;
-            countdown_value <= COUNT_TIME;
+            countdown_value <= countdown_time;
             counting <= 1'b0;
-            btn_pressed <= 1'b0;
-            feedback_pulse <= 1'b0;
-            done_pulse <= 1'b0;
             done <= 1'b0;
-            feedback <= 1'b0;
         end else begin
             // 重置脉冲
-            feedback_pulse <= 1'b0;
-            done_pulse <= 1'b0;
-            done <= done_pulse;
-            feedback <= feedback_pulse;
+            done <= 1'b0;
 
             if (start && !counting) begin
                 counting <= 1'b1;
-                countdown_value <= COUNT_TIME;
+                countdown_value <= countdown_time;
                 sec_counter <= 27'd0;
-                btn_pressed <= 1'b0;
             end else if (counting) begin
-                if (btn_confirm) begin
+                if (end_timer) begin
                     // 按钮按下，结束倒计时，拉高feedback一拍
                     counting <= 1'b0;
-                    btn_pressed <= 1'b1;
-                    feedback_pulse <= 1'b1;
                 end else if (sec_counter < SEC_COUNT - 1) begin
                     sec_counter <= sec_counter + 1;
                 end else begin
@@ -97,9 +80,7 @@ module countdown_controller#(
                     end else begin
                         // 倒计时自然结束，如果没按过按钮，拉高done一拍
                         counting <= 1'b0;
-                        if (!btn_pressed) begin
-                            done_pulse <= 1'b1;
-                        end
+                        done <= 1'b1;
                     end
                 end
             end
