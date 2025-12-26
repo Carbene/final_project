@@ -22,7 +22,7 @@ module countdown_controller(
 
     // 倒计时相关寄存器
     reg [26:0] sec_counter; // 秒计数器，100MHz时钟，1秒=100_000_000周期
-    reg [6:0] countdown_value; // 倒计时值，0-30
+    reg [5:0] countdown_value; // 倒计时值，0-60
     localparam SEC_COUNT = 27'd100_000_000; // 1秒的时钟周期数
 
 
