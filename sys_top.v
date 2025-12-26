@@ -74,21 +74,9 @@ module sys_top(
 
     // mode????
     wire [7:0] led_wire;
-    assign led_wire={2'b0,data_input_mode_en,generate_mode_en,display_mode_en,calculation_mode_en,conv_mode_en,settings_mode_en};
-    always @(posedge clk or negedge rst_n) begin
-        if(!rst_n) begin
-            led <= 8'd0;
-            dk1_segments <= 8'hFF;    // 数码管默认全�????
-            dk2_segments <= 8'hFF;
-            dk_digit_select <= 8'h00; // 数码管位选默认不选中
-        end
-        else begin
-            led <= led_wire;
-            dk1_segments <= 8'hFF;    // 暂未使用
-            dk2_segments <= 8'hFF;
-            dk_digit_select <= 8'h00;
-        end
-    end
+    assign led_wire={(parse_error|| gen_error || display_error || calc_error || conv_error || setting_error), 1'b0,
+	data_input_mode_en,generate_mode_en,display_mode_en,calculation_mode_en,conv_mode_en,settings_mode_en};
+    assign dk_digit_select = {dk1_digit_select[7:4],dk2_sel[3:0]};
 
 	Central_Controller u_ctrl(
 		.clk(clk),
@@ -728,6 +716,9 @@ module sys_top(
 	localparam ERROR_SCALAR          = 4'd9;
 	localparam ERROR_MATRIX      = 4'd10;
 	localparam DONE      = 4'd6;
+	localparam CALC_RANDOM_SELECT = 4'd11;
+	localparam CALC_RANDOM_WAIT = 4'd12;
+	localparam CALC_RANDOM_SCALAR = 4'd13;
 
 
 	localparam OP_TRANSPOSE = 3'd0;
@@ -762,10 +753,14 @@ module sys_top(
 	        end
 
 			CALC_BRANCH: begin
+				if(calc_mode[3]) begin // 是否需要标量输入
+					next_state = CALC_RANDOM_SELECT;
+				end else begin
 				if(op_code == OP_SCALAR) begin
 					next_state = CALC_SCALAR_CONFIRM;
 				end else begin
 					next_state = CALC_COMPUTE;
+				end
 				end
 			end
 
@@ -870,6 +865,32 @@ module sys_top(
 			endcase
 		end
 	end
+	wire timer_start;
+	wire timer_done;
+	wire end_timer;
+	wire [7:0] countdown_time;
+	wire counting;
+	wire [7:0] dk1_digit_select;
+	countdown_controller u_countdown_controller (
+		.clk(clk),
+		.rst_n(rst_n),
+		.start(timer_start),
+		.counting(counting),
+		.done(timer_done),
+		.end_timer(end_timer),
+		.dk1_segments(dk1_segments),
+		.dk_digit_select(dk1_digit_select),
+		.countdown_time(countdown_time)
+	);
+	setting_subsystem u_setting_subsystem (
+		.clk(clk),
+		.rst_n(rst_n),
+		.uart_rx_done(uart_rx_done),
+		.uart_rx_data(uart_rx_data),
+		.enable(settings_mode_en),
+		.param_value(countdown_time),
+		.param_error(timer_start)
+	);
 
 	reg result_printer_start;
 	wire result_printer_done;
@@ -916,6 +937,39 @@ module sys_top(
 	    .done(result_done),
 	    .valid(result_valid),
 	    .busy(result_busy)
+	);
+
+	output_cal_mod u_output_cal_mod (
+	.clk(clk),
+	.rst_n(rst_n),
+	.op_code(op_code),
+	.dk2_segments(dk2_segments),
+	.dk2_sel(dk2_sel)
+	);
+	rand_sel_from_store u_rand_sel_from_store (
+	.clk(clk),
+	.rst_n(rst_n),
+	.start(calc_start),
+	.op_mode(op_code), // 00 transpose,01 scalarmul,10 add,11 mul
+	.info_table(info_table), // 从 matrix_store 直接读取的 25 个 2bit 计数（count[24]..count[0])
+
+	// matrix_store 读取接口
+	.read_en(),
+	.rd_col(),
+	.rd_row(),
+	.rd_mat_index(),
+	.rd_data_flow(),
+	.rd_ready(),
+	.err_rd(),
+
+	// 输出矩阵与控制信号
+	.matrix1(),
+	.matrix2(),
+	.matrix1_valid(),
+	.matrix2_valid(),
+	.done(),
+	.fail(),
+	.scalar_out()
 	);
 
 endmodule
