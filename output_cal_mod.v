@@ -5,12 +5,11 @@ module output_cal_mod (
     output reg [7:0] dk2_segments,
     output reg [3:0] dk2_sel    //后四位
 );
-    parameter CHAR_t    = 8'b0111_1000;  // t 
-    parameter CHAR_A    = 8'b0111_0111;  // A 
-    parameter CHAR_B    = 8'b0111_1100;  // b 
-    parameter CHAR_C    = 8'b0011_1001;  // C 
-    parameter CHAR_J    = 8'b0001_1110;  // J 
-    parameter CHAR_E    = 8'b0111_1001;  // E 
+    parameter CHAR_t    = 8'b0001_1110;  // t 
+    parameter CHAR_a    = 8'b1111_1010;  // a 
+    parameter CHAR_B    = 8'b0011_1110;  // b 
+    parameter CHAR_C    = 8'b0001_1010;  // C 
+    parameter CHAR_J    = 8'b0111_0000;  // J 
     parameter CHAR_NULL = 8'b0000_0000; // 空白
 
     always @(*) begin
@@ -20,7 +19,7 @@ module output_cal_mod (
                 dk2_sel = 4'b0001;
             end
             3'd1: begin
-                dk2_segments = CHAR_A; //加法
+                dk2_segments = CHAR_a; //加法
                 dk2_sel = 4'b0001;
             end
             3'd2: begin

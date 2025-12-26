@@ -6,7 +6,7 @@ module countdown_controller(
     output reg done,     // 倒计时完成标志
     input wire end_timer,
     output reg [7:0] dk1_segments,
-    output reg [7:0] dk_digit_select,
+    output reg [3:0] dk_digit_select,
     input [7:0] countdown_time
 );  
     parameter NUM_0 = 8'b0011_1111; 
@@ -22,7 +22,7 @@ module countdown_controller(
 
     // 倒计时相关寄存器
     reg [26:0] sec_counter; // 秒计数器，100MHz时钟，1秒=100_000_000周期
-    reg [3:0] countdown_value; // 倒计时值，0-15
+    reg [6:0] countdown_value; // 倒计时值，0-30
     localparam SEC_COUNT = 27'd100_000_000; // 1秒的时钟周期数
 
 
@@ -110,10 +110,10 @@ module countdown_controller(
                 digit_sel <= digit_sel + 1'b1; // 交替选择
                 if (digit_sel == 2'd0) begin
                     dk1_segments <= tens_seg;  // 显示十位
-                    dk_digit_select <= 8'b0000_0001; // 选择十位位
+                    dk_digit_select <= 4'b1000; // 选择十位位
                 end else begin
                     dk1_segments <= ones_seg;  // 显示个位
-                    dk_digit_select <= 8'b0000_0010; // 选择个位位
+                    dk_digit_select <= 4'b0100; // 选择个位位
                 end
             end
         end

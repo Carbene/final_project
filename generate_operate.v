@@ -83,7 +83,7 @@ module generate_mode #(
                 if (uart_data_valid) next_state = GENERATE;
             end
             GENERATE: begin
-                if (gen_m == 0 || gen_n == 0) 
+                if (gen_m == 0 || gen_n == 0 || gen_m > 5 || gen_n > 5) 
                     next_state = ERR;
                 else if (matrix_done) // 组合逻辑判断，立即跳转，不留空档
                     next_state = WAIT_WRITE;

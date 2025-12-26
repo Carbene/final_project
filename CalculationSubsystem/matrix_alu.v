@@ -98,12 +98,12 @@ always @(posedge clk or negedge rst_n) begin
                 done <= 1'b0;
                 busy <= 1'b0;
                 if (start) begin
-                    // 检查运算数合法性
+                    // 检查运算数合法性（维度必须至少为1）
                     case (op_code)
-                        OP_TRANSPOSE: valid <= m_a >= 3'd0 && n_a >= 3'd0 && m_a <= 3'd5 && n_a <= 3'd5;
-                        OP_ADD:       valid <= (m_a == m_b) && (n_a == n_b) && m_a >= 3'd0 && n_a >= 3'd0 && m_a <= 3'd5 && n_a <= 3'd5;
-                        OP_SCALAR:    valid <= m_a >= 3'd0 && n_a >= 3'd0 && m_a <= 3'd5 && n_a <= 3'd5;
-                        OP_MULTIPLY:  valid <= (n_a == m_b) && m_a >= 3'd0 && n_a >= 3'd0 && m_b >= 3'd0 && n_b >= 3'd0 &&
+                        OP_TRANSPOSE: valid <= m_a >= 3'd1 && n_a >= 3'd1 && m_a <= 3'd5 && n_a <= 3'd5;
+                        OP_ADD:       valid <= (m_a == m_b) && (n_a == n_b) && m_a >= 3'd1 && n_a >= 3'd1 && m_a <= 3'd5 && n_a <= 3'd5;
+                        OP_SCALAR:    valid <= m_a >= 3'd1 && n_a >= 3'd1 && m_a <= 3'd5 && n_a <= 3'd5;
+                        OP_MULTIPLY:  valid <= (n_a == m_b) && m_a >= 3'd1 && n_a >= 3'd1 && m_b >= 3'd1 && n_b >= 3'd1 &&
                                               m_a <= 3'd5 && n_a <= 3'd5 && m_b <= 3'd5 && n_b <= 3'd5;
                         default:      valid <= 1'b0;
                     endcase

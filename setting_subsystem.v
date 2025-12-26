@@ -59,8 +59,8 @@ assign digit_valid = (uart_rx_data >= 8'h30) && (uart_rx_data <= 8'h39);
 wire [7:0] ascii_to_decimal;
 assign ascii_to_decimal = uart_rx_data - 8'h30;
 
-// 范围检查：5-15
-assign range_valid = (received_value >= 8'd5) && (received_value <= 8'd30);
+// 范围检查：5-60
+assign range_valid = (received_value >= 8'd5) && (received_value <= 8'd60);
 
 always @(posedge clk or negedge rst_n) begin
     if(!rst_n) begin
