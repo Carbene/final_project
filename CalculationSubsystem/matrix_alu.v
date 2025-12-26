@@ -57,7 +57,7 @@ reg        valid_pipe1, valid_pipe2;
 wire [7:0] a_elem, b_elem;
 // 依据锁存的实际列数进行索引，紧凑行优先打包（与打印模块一致）
 assign a_elem = matrix_a_flat[((i)*n_len+(j))*8 +: 8];
-assign b_elem = matrix_b_flat[((i)*n_len+(j))*8 +: 8];
+assign b_elem = matrix_b_flat[((i)*nb_len+(j))*8 +: 8];
 
 // 用于矩阵乘法的元素访问
 wire [7:0] a_ik, b_kj;
