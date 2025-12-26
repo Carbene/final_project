@@ -189,16 +189,7 @@ module sys_top(
 	    end
 	end
 	reg result_printer_start_led;
-	//-----result_printer_start led5_on-----
-	always @(posedge clk or negedge rst_n) begin
-	    if (!rst_n) begin
-	        result_printer_start_led <= 1'b0;
-	    end else if (result_printer_start && !result_printer_start_led) begin
-	        result_printer_start_led <= 1'b1;
-	    end else if (!calculation_mode_en) begin
-	        result_printer_start_led <= 1'b0;
-	    end
-	end
+	
 
     // LD2���鸳ֵ (�ۺ�״̬��ʾ)
     always @(posedge clk or negedge rst_n) begin
@@ -207,12 +198,12 @@ module sys_top(
         end else begin
             ld2[0] <= ld2_wire[0];  // ����洢ָ�?
             ld2[1] <= led1_on;      // gen_done�������?????
-            ld2[2] <= result_printer_start_led;      // gen_error���ɴ���
-            ld2[3] <= calc_start_led;      // gen_valid������Ч
-            ld2[4] <= result_valid_led; // result_valid
-            ld2[5] <= ~state[1];
-            ld2[6] <= ~state[2];
-            ld2[7] <= ~state[3];
+            ld2[2] <=1'b0;      // gen_error���ɴ���
+            ld2[3] <=1'b0 ;      // gen_valid������Ч
+            ld2[4] <= (m_selected[0]==3'b010); // result_valid
+            ld2[5] <= (n_selected[0]==3'b011); // calc_start
+            ld2[6] <= (m_selected[1]==3'b011); // result_printer_start
+            ld2[7] <= (n_selected[1]==3'b010); // reserved
         end
     end
 

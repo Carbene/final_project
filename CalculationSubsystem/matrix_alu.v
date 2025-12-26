@@ -45,6 +45,7 @@ reg [2:0] i, j;
 reg [3:0] k;                // 4bit 以覆盖乘法循环
 reg [15:0] temp_sum;
 reg [2:0] m_len, n_len;     // 锁存的A矩阵尺寸，防止运算中尺寸被清空
+reg [2:0] mb_len;          // 锁存的B矩阵行数（用于乘法）
 reg [2:0] nb_len;           // 锁存的B矩阵列数（用于乘法）
 
 
@@ -57,12 +58,12 @@ reg        valid_pipe1, valid_pipe2;
 wire [7:0] a_elem, b_elem;
 // 依据锁存的实际列数进行索引，紧凑行优先打包（与打印模块一致）
 assign a_elem = matrix_a_flat[((i)*n_len+(j))*8 +: 8];
-assign b_elem = matrix_b_flat[((i)*nb_len+(j))*8 +: 8];
+assign b_elem = matrix_b_flat[((i)*n_len+(j))*8 +: 8];
 
 // 用于矩阵乘法的元素访问
 wire [7:0] a_ik, b_kj;
 assign a_ik = (k[2:0] < n_len) ? matrix_a_flat[((i)*n_len+(k[2:0]))*8 +: 8] : 8'd0;
-assign b_kj = (k[2:0] < nb_len) ? matrix_b_flat[((k[2:0])*nb_len+(j))*8 +: 8] : 8'd0;
+assign b_kj = (k[2:0] < mb_len) ? matrix_b_flat[((k[2:0])*nb_len+(j))*8 +: 8] : 8'd0;
 
 // 临时计算 wire（块外声明）
 wire [15:0] add_tmp, scalar_tmp, mul_tmp;
@@ -79,6 +80,7 @@ always @(posedge clk or negedge rst_n) begin
         j <= 3'd0;
         k <= 3'd0;
         temp_sum <= 16'd0;
+        mb_len <= 3'd0;
         nb_len <= 3'd0;
         result_flat <= 400'd0;
         result_m <= 3'd0;
@@ -115,6 +117,7 @@ always @(posedge clk or negedge rst_n) begin
                     // 锁存尺寸，避免上层在运算期间清空导致仅首行被计算
                     m_len <= m_a;
                     n_len <= n_a;
+                    mb_len <= m_b;
                     nb_len <= n_b;
                 end
             end
