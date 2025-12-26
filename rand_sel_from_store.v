@@ -23,6 +23,10 @@ module rand_sel_from_store(
     output reg [199:0] matrix2,
     output reg matrix1_valid,
     output reg matrix2_valid,
+    output reg [2:0] dim_m1,
+    output reg [2:0] dim_n1,
+    output reg [2:0] dim_m2,
+    output reg [2:0] dim_n2,
     output reg done,
     output reg fail,
     output reg [3:0] scalar_out // 0..9
@@ -193,6 +197,10 @@ module rand_sel_from_store(
             matrix2 <= 200'd0;
             matrix1_valid <= 1'b0;
             matrix2_valid <= 1'b0;
+            dim_m1 <= 3'd0;
+            dim_n1 <= 3'd0;
+            dim_m2 <= 3'd0;
+            dim_n2 <= 3'd0;
             done <= 1'b0;
             fail <= 1'b0;
             first_place_for_mul <= 5'd0;
@@ -281,6 +289,8 @@ module rand_sel_from_store(
                     if (rd_ready) begin
                         // 把读到的数据放到 matrix1
                         matrix1 <= rd_data_flow;
+                        dim_m1 <= rd_row;
+                        dim_n1 <= rd_col;
                         matrix1_valid <= 1'b1;
                         // 特殊处理：如果是乘法，记录第一个 place 并标记
                         if (op_mode == 2'b11) begin
@@ -302,6 +312,8 @@ module rand_sel_from_store(
                 S_WAIT2: begin
                     if (rd_ready) begin
                         matrix2 <= rd_data_flow;
+                        dim_m2 <= rd_row;
+                        dim_n2 <= rd_col;
                         matrix2_valid <= 1'b1;
                     end
                 end
@@ -321,3 +333,53 @@ module rand_sel_from_store(
     end
 
 endmodule
+wire rand_start;
+	wire rand_rd_en;
+    wire [2:0] rand_rd_col;
+    wire [2:0] rand_rd_row;
+    wire [1:0] rand_rd_mat_index;
+    wire [199:0] rand_rd_data_flow;
+    wire rand_rd_ready;
+    wire rand_err_rd;
+
+	wire [199:0] rand_matrix1;
+    wire [199:0] rand_matrix2;
+	wire [2:0] rand_matrix1_m;
+	wire [2:0] rand_matrix1_n;
+	wire [2:0] rand_matrix2_m;
+	wire [2:0] rand_matrix2_n;
+    wire rand_matrix1_valid;
+    wire rand_matrix2_valid;
+    wire rand_done;
+    wire rand_fail;
+    
+    localparam CALC_IDLE        = 5'd0;
+	localparam CALC_WAIT_CONFIRM = 5'd1;
+	localparam CALC_BRANCH       = 5'd2;
+	localparam CALC_SCALAR_CONFIRM = 5'd3;
+	localparam CALC_SCALAR_VALIDATE = 5'd5;
+	localparam CALC_COMPUTE    = 5'd4;
+	localparam RESULT_WAIT    = 5'd7;
+	localparam RESULT_PRINT    = 5'd8;
+	localparam ERROR_SCALAR          = 5'd9;
+	localparam ERROR_MATRIX      = 5'd10;
+	localparam DONE      = 5'd6;
+	localparam CALC_RANDOM_SELECT = 5'd11;
+	localparam CALC_RANDOM_WAIT = 5'd12;
+	localparam CALC_RAND_ERROR = 5'd13;
+	localparam CALC_PRINT_MATRIX1 = 5'd14;
+	localparam CALC_PRINT_MATRIX1_WAIT = 5'd17;
+	localparam CALC_PRINT_MATRIX2 = 5'd15;
+	localparam CALC_PRINT_MATRIX2_WAIT = 5'd18;
+
+    .clk(clk),
+		.rst_n(rst_n),
+		.start(calculator_print_start),
+		.matrix_flat(calculator_matrix_flat),
+		.dimM(calculator_dim_m),                // 使用用户输入的维�?????
+		.dimN(calculator_dim_n),
+		.use_crlf(1'b1),
+		.tx_start(uart_tx_en_calculator),
+		.tx_data(uart_tx_data_calculator),
+		.tx_busy(uart_tx_busy),
+		.done(calculator_print_done)

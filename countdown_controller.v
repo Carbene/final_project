@@ -37,6 +37,14 @@ module countdown_controller(
         case (countdown_value / 10)
             0: tens_seg = NUM_0;
             1: tens_seg = NUM_1;
+            2: tens_seg = NUM_2;
+            3: tens_seg = NUM_3;
+            4: tens_seg = NUM_4;
+            5: tens_seg = NUM_5;
+            6: tens_seg = NUM_6;
+            7: tens_seg = NUM_7;
+            8: tens_seg = NUM_8;
+            9: tens_seg = NUM_9;
             default: tens_seg = NUM_0;
         endcase
         case (countdown_value % 10)

@@ -18,6 +18,7 @@ module sys_top(
 	input wire clk,
 	input wire rst_n,
 	input wire [7:0] command,
+	input wire [7:0] scalar_command,
 	input wire btn_confirm,
 	input wire btn_countdown,  // 新增倒计时按�?????
 	input wire uart_rxd,
@@ -423,9 +424,14 @@ module sys_top(
 				uart_tx_en   = conv_uart_tx_en;
 				uart_tx_data = conv_uart_tx_data;
 			end		end else if (calculation_mode_en) begin
+				if(is_result_mode) begin
 			// 计算模式 - 结果打印器输�??
 			uart_tx_en   = result_printer_tx_start;
-			uart_tx_data = result_printer_tx_data;		end else begin
+			uart_tx_data = result_printer_tx_data;		
+			end else begin
+			uart_tx_en = uart_tx_en_calculator;
+			uart_tx_data = uart_tx_data_calculator;
+			end end else begin
 			uart_tx_en = 1'b0;
 			uart_tx_data = 8'd0;
 		end
@@ -698,34 +704,36 @@ module sys_top(
 	reg [3:0] calc_mode;
 	wire [2:0] op_code = calc_mode[2:0];
 	reg calc_start;
-	reg error_not_cleaned;
 
-	reg [3:0] state, next_state;
+	reg [4:0] state, next_state;
 	reg [7:0] scalr_input;
-	wire [7:0] scalar_input = command;           // 临时：沿用command作为标量输入�?
+	wire [7:0] scalar_input = scalar_command;           // 临时：沿用command作为标量输入�?
 	wire scalar_valid = (scalar_input <= 8'd9);  // 只允�?0~9
 
-	localparam CALC_IDLE        = 4'd0;
-	localparam CALC_WAIT_CONFIRM = 4'd1;
-	localparam CALC_BRANCH       = 4'd2;
-	localparam CALC_SCALAR_CONFIRM = 4'd3;
-	localparam CALC_SCALAR_VALIDATE = 4'd5;
-	localparam CALC_COMPUTE    = 4'd4;
-	localparam RESULT_WAIT    = 4'd7;
-	localparam RESULT_PRINT    = 4'd8;
-	localparam ERROR_SCALAR          = 4'd9;
-	localparam ERROR_MATRIX      = 4'd10;
-	localparam DONE      = 4'd6;
-	localparam CALC_RANDOM_SELECT = 4'd11;
-	localparam CALC_RANDOM_WAIT = 4'd12;
-	localparam CALC_RANDOM_SCALAR = 4'd13;
-
-
+	localparam CALC_IDLE        = 5'd0;
+	localparam CALC_WAIT_CONFIRM = 5'd1;
+	localparam CALC_BRANCH       = 5'd2;
+	localparam CALC_SCALAR_CONFIRM = 5'd3;
+	localparam CALC_SCALAR_VALIDATE = 5'd5;
+	localparam CALC_COMPUTE    = 5'd4;
+	localparam RESULT_WAIT    = 5'd7;
+	localparam RESULT_PRINT    = 5'd8;
+	localparam ERROR_SCALAR          = 5'd9;
+	localparam ERROR_MATRIX      = 5'd10;
+	localparam DONE      = 5'd6;
+	localparam CALC_RANDOM_SELECT = 5'd11;
+	localparam CALC_RANDOM_WAIT = 5'd12;
+	localparam CALC_RAND_ERROR = 5'd13;
+	localparam CALC_PRINT_MATRIX1 = 5'd14;
+	localparam CALC_PRINT_MATRIX1_WAIT = 5'd17;
+	localparam CALC_PRINT_MATRIX2 = 5'd15;
+	localparam CALC_PRINT_MATRIX2_WAIT = 5'd18;
+	
 	localparam OP_TRANSPOSE = 3'd0;
 	localparam OP_SCALAR = 3'd1;
 	localparam OP_ADD       = 3'd2;
 	localparam OP_MULTIPLY  = 3'd3;
-
+	reg is_result_mode;
 	always @(posedge clk or negedge rst_n) begin
 	    if (!rst_n) begin
 	        state <= CALC_IDLE;
@@ -733,13 +741,12 @@ module sys_top(
 	        state <= next_state;
 	    end
 	end
-
 	always @(*) begin
 	    next_state = state;
 	    case (state)
 	        CALC_IDLE: begin
 	            if (calculation_mode_en) begin
-					if(error_not_cleaned) begin
+					if(counting) begin
 						next_state = CALC_COMPUTE;
 					end else begin
 	                next_state = CALC_WAIT_CONFIRM;
@@ -751,7 +758,6 @@ module sys_top(
 					next_state = CALC_BRANCH;
 	            end
 	        end
-
 			CALC_BRANCH: begin
 				if(calc_mode[3]) begin // 是否需要标量输入
 					next_state = CALC_RANDOM_SELECT;
@@ -761,6 +767,18 @@ module sys_top(
 				end else begin
 					next_state = CALC_COMPUTE;
 				end
+				end
+			end
+
+			CALC_RANDOM_SELECT: begin
+				next_state = CALC_RANDOM_WAIT;
+			end
+
+			CALC_RANDOM_WAIT: begin
+				if(rand_done) begin
+					next_state = CALC_COMPUTE;
+				end else if(rand_fail) begin
+					next_state = CALC_RAND_ERROR;
 				end
 			end
 
@@ -780,7 +798,7 @@ module sys_top(
 
 			CALC_COMPUTE: begin
 				if(result_done) begin
-					if(result_valid) begin//可疑
+					if(result_valid) begin
 						next_state = RESULT_PRINT;
 					end else begin
 						next_state = ERROR_MATRIX;
@@ -790,14 +808,36 @@ module sys_top(
 
 			RESULT_PRINT: begin
 				if(result_printer_done) begin
-					next_state = DONE;
+					next_state = CALC_PRINT_MATRIX1;
 				end
 			end
 
+			CALC_PRINT_MATRIX1: begin
+				next_state = CALC_PRINT_MATRIX1_WAIT;
+			end
+			CALC_PRINT_MATRIX1_WAIT: begin
+				if(result_printer_done) begin
+					case(op_code)
+					OP_ADD, OP_MULTIPLY: begin
+						next_state = CALC_PRINT_MATRIX2;
+					end
+					default: begin
+						next_state = DONE;
+					end
+				endcase
+				end
+			end
+			CALC_PRINT_MATRIX2: begin
+				next_state = CALC_PRINT_MATRIX2_WAIT;
+			end
+			CALC_PRINT_MATRIX2_WAIT: begin
+				if(result_printer_done) begin
+					next_state = DONE;
+				end
+			end
 			ERROR_SCALAR: begin
 				next_state = CALC_SCALAR_CONFIRM;
 			end
-
 			DONE: begin
 				if(!calculation_mode_en) begin
 					next_state = CALC_IDLE;
@@ -805,7 +845,15 @@ module sys_top(
 			end
 
 			ERROR_MATRIX: begin
-				next_state = CALC_IDLE;
+				if(!calculation_mode_en) begin
+					next_state = CALC_IDLE;
+				end
+			end
+
+			CALC_RAND_ERROR: begin
+				if(!calculation_mode_en) begin
+					next_state = CALC_IDLE;
+				end
 			end
 
 	        default: begin
@@ -815,16 +863,26 @@ module sys_top(
 	end
 	always@(posedge clk or negedge rst_n) begin
 		if(!rst_n) begin
-			error_not_cleaned <= 1'b0;
 			calc_start <= 1'b0;
 			calc_mode <= 4'd0;
 			scalar <= 8'd0;
 			result_printer_start <= 1'b0;
+			timer_start <= 1'b0;
+			end_timer <= 1'b0;
+			calculator_print_start <= 1'b0;
+			calculator_matrix_flat <= 200'd0;
+			is_result_mode <= 1'b0;
 		end else begin
 			// 默认脉冲信号清零，但 calc_mode �?? scalar 保持锁存�??
 			calc_start <= 1'b0;
 			result_printer_start <= 1'b0;
-			
+			timer_start <= 1'b0;
+			end_timer <= 1'b0;
+			calculator_print_start <= 1'b0;
+			calculator_matrix_flat <= 200'd0;
+			calculator_dim_m <= 3'd0;
+			calculator_dim_n <= 3'd0;
+			is_result_mode <= 1'b0;
 			case (state)
 				CALC_IDLE: begin
 					// 进入计算模式时不清零 calc_mode，保持上次设�??
@@ -837,27 +895,62 @@ module sys_top(
 				CALC_BRANCH: begin
 					// calc_mode 已经锁存，不�??要再设置
 				end
+				CALC_RANDOM_SELECT: begin
+					rand_start <= 1'b1;
+				end
+				CALC_RANDOM_WAIT: begin
+					if(rand_matrix1_valid) begin
+						matrix_selected[0] <= rand_matrix1;
+						m_selected[0] <= rand_matrix1_m;
+						n_selected[0] <= rand_matrix1_n;
+					end else if(rand_matrix2_valid) begin
+						matrix_selected[1] <= rand_matrix2;
+						m_selected[1] <= rand_matrix2_m;
+						n_selected[1] <= rand_matrix2_n;
+					end
+					scalar <= rand_scalar_out; // 使用随机标量
+				end
+				CALC_RAND_ERROR: begin
+					calc_error <= 1'b1;
+				end
 				CALC_SCALAR_VALIDATE: begin
 					if(scalar_valid) begin
 						scalar <= scalar_input;
-						error_not_cleaned <= 1'b0;
 					end
 				end
 				CALC_COMPUTE: begin
 					calc_start <= 1'b1;
 				end
 				RESULT_PRINT: begin
+					is_result_mode <= 1'b1;
 					result_printer_start <= 1'b1;
 				end
+				CALC_PRINT_MATRIX1: begin
+					result_printer_start <= 1'b1;
+					calculator_matrix_flat <= matrix_selected[0];
+					calculator_dim_m <= m_selected[0];
+					calculator_dim_n <= n_selected[0];
+				end
+				CALC_PRINT_MATRIX1_WAIT: begin
+				end
+				CALC_PRINT_MATRIX2: begin
+					result_printer_start <= 1'b1;
+					calculator_matrix_flat <= matrix_selected[1];
+					calculator_dim_m <= m_selected[1];
+					calculator_dim_n <= n_selected[1];
+				end
+				CALC_PRINT_MATRIX2_WAIT: begin
+				end
 				ERROR_SCALAR: begin
-					error_not_cleaned <= 1'b1;
+					timer_start <= 1'b1;
 				end
 				ERROR_MATRIX: begin
-					error_not_cleaned <= 1'b1;
+					timer_start <= 1'b1;
 				end
 				DONE: begin
-					error_not_cleaned <= 1'b0;
+				end_timer <= 1'b1;
 				end
+
 
 				default: begin
 					// do nothing
@@ -882,6 +975,7 @@ module sys_top(
 		.dk_digit_select(dk1_digit_select),
 		.countdown_time(countdown_time)
 	);
+	wire setting_error;
 	setting_subsystem u_setting_subsystem (
 		.clk(clk),
 		.rst_n(rst_n),
@@ -889,7 +983,7 @@ module sys_top(
 		.uart_rx_data(uart_rx_data),
 		.enable(settings_mode_en),
 		.param_value(countdown_time),
-		.param_error(timer_start)
+		.param_error(setting_error)
 	);
 
 	reg result_printer_start;
@@ -946,30 +1040,69 @@ module sys_top(
 	.dk2_segments(dk2_segments),
 	.dk2_sel(dk2_sel)
 	);
+	wire rand_start;
+	wire rand_rd_en;
+    wire [2:0] rand_rd_col;
+    wire [2:0] rand_rd_row;
+    wire [1:0] rand_rd_mat_index;
+    wire [199:0] rand_rd_data_flow;
+    wire rand_rd_ready;
+    wire rand_err_rd;
+
+	wire [199:0] rand_matrix1;
+    wire [199:0] rand_matrix2;
+	wire [2:0] rand_matrix1_m;
+	wire [2:0] rand_matrix1_n;
+	wire [2:0] rand_matrix2_m;
+	wire [2:0] rand_matrix2_n;
+    wire rand_matrix1_valid;
+    wire rand_matrix2_valid;
+    wire rand_done;
+    wire rand_fail;
+    wire [3:0] rand_scalar_out; // 0..9
+
 	rand_sel_from_store u_rand_sel_from_store (
 	.clk(clk),
 	.rst_n(rst_n),
-	.start(calc_start),
+	.start(rand_start),
 	.op_mode(op_code), // 00 transpose,01 scalarmul,10 add,11 mul
 	.info_table(info_table), // 从 matrix_store 直接读取的 25 个 2bit 计数（count[24]..count[0])
 
 	// matrix_store 读取接口
-	.read_en(),
-	.rd_col(),
-	.rd_row(),
-	.rd_mat_index(),
-	.rd_data_flow(),
-	.rd_ready(),
-	.err_rd(),
+	.read_en(rand_rd_en),
+	.rd_col(rand_rd_col),
+	.rd_row(rand_rd_row),
+	.rd_mat_index(rand_rd_mat_index),
+	.rd_data_flow(rand_rd_data_flow),
+	.rd_ready(rand_rd_ready),
+	.err_rd(rand_err_rd),
 
 	// 输出矩阵与控制信号
-	.matrix1(),
-	.matrix2(),
-	.matrix1_valid(),
-	.matrix2_valid(),
-	.done(),
-	.fail(),
-	.scalar_out()
+	.matrix1(rand_matrix1),
+	.matrix2(rand_matrix2),
+	.matrix1_valid(rand_matrix1_valid),
+	.matrix2_valid(rand_matrix2_valid),
+	.dim_m1(rand_matrix1_m),
+	.dim_n1(rand_matrix1_n),
+	.dim_m2(rand_matrix2_m),
+	.dim_n2(rand_matrix2_n),
+	.done(rand_done),
+	.fail(rand_fail),
+	.scalar_out(rand_scalar_out)
+	);
+
+	matrix_printer u_print_for_calculator (
+		.clk(clk),
+		.rst_n(rst_n),
+		.start(calculator_print_start),
+		.matrix_flat(calculator_matrix_flat),
+		.dimM(calculator_dim_m),                // 使用用户输入的维�?????
+		.dimN(calculator_dim_n),
+		.use_crlf(1'b1),
+		.tx_start(uart_tx_en_calculator),
+		.tx_data(uart_tx_data_calculator),
+		.tx_busy(uart_tx_busy),
+		.done(calculator_print_done)
 	);
 
 endmodule
