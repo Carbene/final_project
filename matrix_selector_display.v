@@ -65,6 +65,7 @@ module matrix_selector_display #(
     localparam DISPLAY_MATRIX_WAIT      = 5'd14;
     localparam DONE_STATE               = 5'd15;
     localparam ERROR_STATE              = 5'd16;
+    localparam WAIT_STATE               = 5'd17;
 
     // 状态寄存器
     reg [4:0] state, next_state;
@@ -177,9 +178,11 @@ module matrix_selector_display #(
                     next_state = DONE_STATE;
             
             DONE_STATE:
+                next_state = WAIT_STATE;
+
+            WAIT_STATE:
             if(!start)
                 next_state = IDLE;
-            
             ERROR_STATE:
                 next_state = IDLE;
             
@@ -296,6 +299,10 @@ module matrix_selector_display #(
                     dim_m_valid <= 1'b0;
                     dim_n_valid <= 1'b0;
                     matrix_id_valid <= 1'b0;
+                end
+
+                WAIT_STATE: begin
+                    
                 end
                 
                 ERROR_STATE: begin

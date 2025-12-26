@@ -177,6 +177,28 @@ module sys_top(
 	        calc_start_led <= 1'b0;  // �???出计算模式时清零
 	    end
 	end
+	reg result_valid_led;
+	//-----result_valid led4_on-----
+	always @(posedge clk or negedge rst_n) begin
+	    if (!rst_n) begin
+	        result_valid_led <= 1'b0;
+	    end else if (result_valid && !result_valid_led) begin
+	        result_valid_led <= 1'b1;
+	    end else if (!calculation_mode_en) begin
+	        result_valid_led <= 1'b0;
+	    end
+	end
+	reg result_printer_start_led;
+	//-----result_printer_start led5_on-----
+	always @(posedge clk or negedge rst_n) begin
+	    if (!rst_n) begin
+	        result_printer_start_led <= 1'b0;
+	    end else if (result_printer_start && !result_printer_start_led) begin
+	        result_printer_start_led <= 1'b1;
+	    end else if (!calculation_mode_en) begin
+	        result_printer_start_led <= 1'b0;
+	    end
+	end
 
     // LD2���鸳ֵ (�ۺ�״̬��ʾ)
     always @(posedge clk or negedge rst_n) begin
@@ -185,9 +207,9 @@ module sys_top(
         end else begin
             ld2[0] <= ld2_wire[0];  // ����洢ָ�?
             ld2[1] <= led1_on;      // gen_done�������?????
-            ld2[2] <= result_done_led;      // gen_error���ɴ���
+            ld2[2] <= result_printer_start_led;      // gen_error���ɴ���
             ld2[3] <= calc_start_led;      // gen_valid������Ч
-            ld2[4] <= ~state[0]; // print_table״̬������
+            ld2[4] <= result_valid_led; // result_valid
             ld2[5] <= ~state[1];
             ld2[6] <= ~state[2];
             ld2[7] <= ~state[3];
@@ -772,7 +794,7 @@ module sys_top(
 
 			CALC_COMPUTE: begin
 				if(result_done) begin
-					if(result_valid) begin
+					if(result_valid) begin//可疑
 						next_state = RESULT_PRINT;
 					end else begin
 						next_state = ERROR_MATRIX;
